@@ -1,25 +1,19 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
 from models.schemas import UserInput, RecommendationResponse
+from models.database import Car
 from services.scoring import calculate_rule_based_scores
 from services.recommender import get_recommendations
+from config import get_db
 
 router = APIRouter(prefix="/api", tags=["recommendations"])
 
 
 @router.post("/recommend", response_model=RecommendationResponse)
-def recommend_cars(user_input: UserInput):
-    """
-    Endpoint principal: primește datele utilizatorului și returnează recomandări auto.
-    Pas 1: Scoring rule-based
-    Pas 2: Rafinare cu model ML
-    """
+def recommend_cars(user_input: UserInput, db: Session = Depends(get_db)):
     try:
-        # Pas 1: Calculează scorurile rule-based
         scores = calculate_rule_based_scores(user_input)
-
-        # Pas 2: Obține recomandările finale (rule-based + ML)
-        recommendations = get_recommendations(user_input, scores)
-
+        recommendations = get_recommendations(user_input, scores, db)
         return RecommendationResponse(
             recommendations=recommendations,
             user_profile=scores
@@ -29,61 +23,74 @@ def recommend_cars(user_input: UserInput):
 
 
 @router.get("/cars")
-def get_all_cars():
-    """Returnează lista tuturor mașinilor din baza de date."""
-    # TODO: Implementare cu PostgreSQL
-    return {"message": "Lista mașinilor - de implementat"}
+def get_all_cars(db: Session = Depends(get_db)):
+    cars = db.query(Car).all()
+    return {
+        "total": len(cars),
+        "cars": [
+            {
+                "id": c.id,
+                "marca": c.marca,
+                "model": c.model,
+                "an": c.an,
+                "pret": c.pret,
+                "tip_combustibil": c.tip_combustibil,
+                "tip_caroserie": c.tip_caroserie,
+                "putere_cp": c.putere_cp,
+            }
+            for c in cars
+        ]
+    }
 
 
 @router.get("/test-questions")
 def get_test_questions():
-    """Returnează întrebările pentru mini-testul comportamental."""
     questions = [
         {
             "id": 1,
-            "text": "Când conduci pe autostradă, ce este cel mai important pentru tine?",
+            "text": "Cand conduci pe autostrada, ce este cel mai important pentru tine?",
             "options": [
-                {"text": "Să mă simt în siguranță", "scores": {"siguranta": 3, "comfort": 1}},
-                {"text": "Să simt puterea motorului", "scores": {"sport": 3, "estetica": 1}},
-                {"text": "Să consum cât mai puțin", "scores": {"economie": 3, "comfort": 1}},
-                {"text": "Să am un drum lin și silențios", "scores": {"comfort": 3, "siguranta": 1}},
+                {"text": "Sa ma simt in siguranta", "scores": {"siguranta": 3, "comfort": 1}},
+                {"text": "Sa simt puterea motorului", "scores": {"sport": 3, "estetica": 1}},
+                {"text": "Sa consum cat mai putin", "scores": {"economie": 3, "comfort": 1}},
+                {"text": "Sa am un drum lin si silentios", "scores": {"comfort": 3, "siguranta": 1}},
             ]
         },
         {
             "id": 2,
-            "text": "Ce aspect al unei mașini te atrage primul?",
+            "text": "Ce aspect al unei masini te atrage primul?",
             "options": [
                 {"text": "Designul exterior", "scores": {"estetica": 3, "sport": 1}},
-                {"text": "Spațiul interior", "scores": {"comfort": 3, "siguranta": 1}},
-                {"text": "Consumul și costurile de întreținere", "scores": {"economie": 3, "siguranta": 1}},
-                {"text": "Performanțele tehnice", "scores": {"sport": 3, "estetica": 1}},
+                {"text": "Spatiul interior", "scores": {"comfort": 3, "siguranta": 1}},
+                {"text": "Consumul si costurile de intretinere", "scores": {"economie": 3, "siguranta": 1}},
+                {"text": "Performantele tehnice", "scores": {"sport": 3, "estetica": 1}},
             ]
         },
         {
             "id": 3,
-            "text": "Cum ai descrie stilul tău de condus?",
+            "text": "Cum ai descrie stilul tau de condus?",
             "options": [
-                {"text": "Prudent și atent", "scores": {"siguranta": 3, "economie": 1}},
-                {"text": "Sportiv și dinamic", "scores": {"sport": 3, "estetica": 1}},
-                {"text": "Relaxat și confortabil", "scores": {"comfort": 3, "economie": 1}},
-                {"text": "Eficient și practic", "scores": {"economie": 3, "comfort": 1}},
+                {"text": "Prudent si atent", "scores": {"siguranta": 3, "economie": 1}},
+                {"text": "Sportiv si dinamic", "scores": {"sport": 3, "estetica": 1}},
+                {"text": "Relaxat si confortabil", "scores": {"comfort": 3, "economie": 1}},
+                {"text": "Eficient si practic", "scores": {"economie": 3, "comfort": 1}},
             ]
         },
         {
             "id": 4,
-            "text": "Dacă ai avea buget nelimitat, ce mașină ai alege?",
+            "text": "Daca ai avea buget nelimitat, ce masina ai alege?",
             "options": [
-                {"text": "Un SUV mare și sigur (Volvo XC90)", "scores": {"siguranta": 3, "comfort": 2}},
+                {"text": "Un SUV mare si sigur (Volvo XC90)", "scores": {"siguranta": 3, "comfort": 2}},
                 {"text": "Un supercar (Ferrari, Lamborghini)", "scores": {"sport": 3, "estetica": 2}},
-                {"text": "O limuzină de lux (Mercedes S-Class)", "scores": {"comfort": 3, "estetica": 2}},
-                {"text": "O mașină electrică premium (Tesla)", "scores": {"economie": 2, "sport": 2, "estetica": 1}},
+                {"text": "O limuzina de lux (Mercedes S-Class)", "scores": {"comfort": 3, "estetica": 2}},
+                {"text": "O masina electrica premium (Tesla)", "scores": {"economie": 2, "sport": 2, "estetica": 1}},
             ]
         },
         {
             "id": 5,
-            "text": "Ce faci de obicei în weekend cu mașina?",
+            "text": "Ce faci de obicei in weekend cu masina?",
             "options": [
-                {"text": "Plimbări scurte prin oraș", "scores": {"economie": 3, "comfort": 1}},
+                {"text": "Plimbari scurte prin oras", "scores": {"economie": 3, "comfort": 1}},
                 {"text": "Drumuri lungi, excursii", "scores": {"comfort": 3, "siguranta": 1}},
                 {"text": "Merg pe trasee montane/off-road", "scores": {"sport": 2, "siguranta": 2}},
                 {"text": "O folosesc rar, prefer transportul public", "scores": {"economie": 3, "estetica": 1}},
