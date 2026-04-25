@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Optional
+from datetime import datetime
 
 
 class PhysiologicalData(BaseModel):
@@ -21,13 +22,11 @@ class BehavioralScores(BaseModel):
 
 
 class UserInput(BaseModel):
-    """Input complet de la utilizator."""
     physiological: PhysiologicalData
     behavioral: BehavioralScores
 
 
 class CarRecommendation(BaseModel):
-    """O recomandare de mașină."""
     id: int
     marca: str
     model: str
@@ -51,15 +50,17 @@ class UserProfile(BaseModel):
 
 
 class RecommendationResponse(BaseModel):
-    """Răspunsul complet cu recomandări."""
     recommendations: list[CarRecommendation]
     user_profile: UserProfile
+    recommendation_id: Optional[int] = Field(
+        default=None,
+        description="ID-ul intrării din istoric (doar pentru endpoint-urile autentificate). Folosit la trimiterea feedback-ului.",
+    )
 
 
-# === Profil persistent (DB) ===
+# === Profil persistent ===
 
 class UserProfileResponse(BaseModel):
-    """Profil persistent salvat în baza de date."""
     id: int
     user_id: int
     inaltime: Optional[float] = None
@@ -80,7 +81,6 @@ class UserProfileResponse(BaseModel):
 
 
 class UserProfileUpdate(BaseModel):
-    """Actualizare parțială - doar câmpurile trimise se modifică."""
     inaltime: Optional[float] = Field(None, ge=140, le=220)
     greutate: Optional[float] = Field(None, ge=40, le=200)
     buget: Optional[float] = Field(None, ge=1000, le=500000)
@@ -91,3 +91,61 @@ class UserProfileUpdate(BaseModel):
     score_siguranta: Optional[float] = Field(None, ge=0, le=15)
     score_economie: Optional[float] = Field(None, ge=0, le=15)
     score_estetica: Optional[float] = Field(None, ge=0, le=15)
+
+
+# === Feedback ===
+
+class FeedbackCreate(BaseModel):
+    """Trimitere feedback pentru o mașină recomandată."""
+    car_id: int = Field(..., description="ID-ul mașinii pentru care se dă feedback")
+    rating: int = Field(..., ge=-1, le=1, description="-1 (dislike), 0 (neutru), +1 (like)")
+    recommendation_id: Optional[int] = Field(
+        default=None,
+        description="ID-ul intrării din istoric (opțional). Permite analiză contextuală.",
+    )
+    comment: Optional[str] = Field(default=None, max_length=500)
+
+
+class FeedbackResponse(BaseModel):
+    id: int
+    user_id: int
+    car_id: int
+    recommendation_id: Optional[int] = None
+    rating: int
+    comment: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class FeedbackHistoryItem(BaseModel):
+    """Feedback cu detalii despre mașină asociată."""
+    id: int
+    car_id: int
+    car_marca: str
+    car_model: str
+    car_an: int
+    rating: int
+    comment: Optional[str] = None
+    recommendation_id: Optional[int] = None
+    created_at: datetime
+
+
+class FeedbackStatsItem(BaseModel):
+    """Statistici agregate per mașină."""
+    car_id: int
+    marca: str
+    model: str
+    likes: int
+    dislikes: int
+    neutral: int
+    total: int
+    score: float = Field(..., description="(likes - dislikes) / total")
+
+
+class FeedbackStatsResponse(BaseModel):
+    total_feedbacks: int
+    most_liked: list[FeedbackStatsItem]
+    most_disliked: list[FeedbackStatsItem]

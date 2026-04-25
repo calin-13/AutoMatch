@@ -2,7 +2,6 @@
 -- Schema: Sistem de recomandare auto personalizata
 -- =============================================
 
--- Catalog masini
 CREATE TABLE IF NOT EXISTS cars (
     id SERIAL PRIMARY KEY,
     marca VARCHAR(50) NOT NULL,
@@ -27,7 +26,6 @@ CREATE TABLE IF NOT EXISTS cars (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Utilizatori (autentificare)
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -36,7 +34,6 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Profil persistent: 1-to-1 cu users (date ergonomice + ultimele scoruri test)
 CREATE TABLE IF NOT EXISTS user_profiles (
     id SERIAL PRIMARY KEY,
     user_id INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -55,7 +52,6 @@ CREATE TABLE IF NOT EXISTS user_profiles (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Istoric recomandari per utilizator
 CREATE TABLE IF NOT EXISTS recommendation_history (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -73,9 +69,23 @@ CREATE TABLE IF NOT EXISTS recommendation_history (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Indexuri pentru performanta
+CREATE TABLE IF NOT EXISTS recommendation_feedback (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    car_id INTEGER NOT NULL REFERENCES cars(id) ON DELETE CASCADE,
+    recommendation_id INTEGER REFERENCES recommendation_history(id) ON DELETE SET NULL,
+    rating INTEGER NOT NULL CHECK (rating BETWEEN -1 AND 1),
+    comment VARCHAR(500),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_feedback_user_car_rec UNIQUE (user_id, car_id, recommendation_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_cars_pret ON cars(pret);
 CREATE INDEX IF NOT EXISTS idx_cars_combustibil ON cars(tip_combustibil);
 CREATE INDEX IF NOT EXISTS idx_cars_caroserie ON cars(tip_caroserie);
 CREATE INDEX IF NOT EXISTS idx_history_user ON recommendation_history(user_id);
 CREATE INDEX IF NOT EXISTS idx_history_created ON recommendation_history(created_at);
+CREATE INDEX IF NOT EXISTS idx_feedback_user ON recommendation_feedback(user_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_car ON recommendation_feedback(car_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_rec ON recommendation_feedback(recommendation_id);

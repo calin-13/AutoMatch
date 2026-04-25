@@ -1,4 +1,7 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, func
+from sqlalchemy import (
+    Column, Integer, String, Float, DateTime, ForeignKey, Boolean,
+    UniqueConstraint, func
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -47,6 +50,11 @@ class User(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
+    feedbacks = relationship(
+        "RecommendationFeedback",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
 
 class UserProfile(Base):
@@ -57,14 +65,12 @@ class UserProfile(Base):
         Integer, ForeignKey("users.id"), unique=True, nullable=False, index=True
     )
 
-    # Date ergonomice/practice
     inaltime = Column(Float, nullable=True)
     greutate = Column(Float, nullable=True)
     buget = Column(Float, nullable=True)
     km_zi = Column(Float, nullable=True)
     tip_combustibil = Column(String(20), nullable=True)
 
-    # Ultimele scoruri din mini-test
     score_comfort = Column(Float, nullable=True)
     score_sport = Column(Float, nullable=True)
     score_siguranta = Column(Float, nullable=True)
@@ -98,3 +104,25 @@ class RecommendationHistory(Base):
     created_at = Column(DateTime, server_default=func.now())
 
     user = relationship("User", back_populates="recommendations")
+
+
+class RecommendationFeedback(Base):
+    __tablename__ = "recommendation_feedback"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    car_id = Column(Integer, ForeignKey("cars.id"), nullable=False, index=True)
+    recommendation_id = Column(
+        Integer, ForeignKey("recommendation_history.id"), nullable=True, index=True
+    )
+    rating = Column(Integer, nullable=False)  # -1, 0, +1
+    comment = Column(String(500), nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    user = relationship("User", back_populates="feedbacks")
+    car = relationship("Car")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "car_id", "recommendation_id", name="uq_feedback_user_car_rec"),
+    )

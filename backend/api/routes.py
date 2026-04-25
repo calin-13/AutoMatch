@@ -19,15 +19,16 @@ router = APIRouter(prefix="/api", tags=["recommendations"])
 def get_optional_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = payload.get("sub")
-        if user_id:
-            return db.query(User).filter(User.id == user_id).first()
+        sub = payload.get("sub")
+        if sub:
+            return db.query(User).filter(User.id == int(sub)).first()
     except Exception:
         pass
     return None
 
 
 def _save_history(db, user_id, user_input, scores, recommendations):
+    """Salveaza istoric si returneaza ID-ul nou creat (pentru feedback)."""
     car_ids = ",".join([str(r.id) for r in recommendations])
     history = RecommendationHistory(
         user_id=user_id,
@@ -45,6 +46,8 @@ def _save_history(db, user_id, user_input, scores, recommendations):
     )
     db.add(history)
     db.commit()
+    db.refresh(history)
+    return history.id
 
 
 @router.post("/recommend", response_model=RecommendationResponse)
@@ -53,7 +56,9 @@ def recommend_cars(user_input: UserInput, db: Session = Depends(get_db)):
         scores = calculate_rule_based_scores(user_input)
         recommendations = get_recommendations(user_input, scores, db)
         return RecommendationResponse(
-            recommendations=recommendations, user_profile=scores
+            recommendations=recommendations,
+            user_profile=scores,
+            recommendation_id=None,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -68,9 +73,11 @@ def recommend_cars_auth(
     try:
         scores = calculate_rule_based_scores(user_input)
         recommendations = get_recommendations(user_input, scores, db)
-        _save_history(db, current_user.id, user_input, scores, recommendations)
+        rec_id = _save_history(db, current_user.id, user_input, scores, recommendations)
         return RecommendationResponse(
-            recommendations=recommendations, user_profile=scores
+            recommendations=recommendations,
+            user_profile=scores,
+            recommendation_id=rec_id,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -81,10 +88,6 @@ def recommend_from_profile(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    """
-    Recomandare folosind profilul persistent. NU necesită body.
-    Verifică dacă profilul e complet și returnează 400 cu lista lipsurilor altfel.
-    """
     profile_db = (
         db.query(UserProfileDB)
         .filter(UserProfileDB.user_id == current_user.id)
@@ -136,9 +139,11 @@ def recommend_from_profile(
     try:
         scores = calculate_rule_based_scores(user_input)
         recommendations = get_recommendations(user_input, scores, db)
-        _save_history(db, current_user.id, user_input, scores, recommendations)
+        rec_id = _save_history(db, current_user.id, user_input, scores, recommendations)
         return RecommendationResponse(
-            recommendations=recommendations, user_profile=scores
+            recommendations=recommendations,
+            user_profile=scores,
+            recommendation_id=rec_id,
         )
     except HTTPException:
         raise
