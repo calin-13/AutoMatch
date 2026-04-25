@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, func
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -41,6 +41,42 @@ class User(Base):
     created_at = Column(DateTime, server_default=func.now())
 
     recommendations = relationship("RecommendationHistory", back_populates="user")
+    profile = relationship(
+        "UserProfile",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
+
+class UserProfile(Base):
+    __tablename__ = "user_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id"), unique=True, nullable=False, index=True
+    )
+
+    # Date ergonomice/practice
+    inaltime = Column(Float, nullable=True)
+    greutate = Column(Float, nullable=True)
+    buget = Column(Float, nullable=True)
+    km_zi = Column(Float, nullable=True)
+    tip_combustibil = Column(String(20), nullable=True)
+
+    # Ultimele scoruri din mini-test
+    score_comfort = Column(Float, nullable=True)
+    score_sport = Column(Float, nullable=True)
+    score_siguranta = Column(Float, nullable=True)
+    score_economie = Column(Float, nullable=True)
+    score_estetica = Column(Float, nullable=True)
+
+    has_completed_test = Column(Boolean, default=False, nullable=False)
+
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    user = relationship("User", back_populates="profile")
 
 
 class RecommendationHistory(Base):
