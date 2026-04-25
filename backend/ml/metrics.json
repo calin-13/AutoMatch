@@ -1,0 +1,160 @@
+{
+  "dataset": {
+    "total_samples": 3668,
+    "train_samples": 2934,
+    "test_samples": 734,
+    "num_features": 24,
+    "label_distribution": {
+      "0": 126,
+      "1": 1337,
+      "2": 2205
+    }
+  },
+  "regression_comparison": {
+    "RandomForest": {
+      "mae": 2.77,
+      "r2": 0.9047,
+      "cv_r2_mean": 0.7885,
+      "cv_r2_std": 0.0438,
+      "train_time_sec": 0.317,
+      "predict_time_sec": 0.0268
+    },
+    "XGBoost": {
+      "mae": 2.37,
+      "r2": 0.9328,
+      "cv_r2_mean": 0.8135,
+      "cv_r2_std": 0.0362,
+      "train_time_sec": 0.574,
+      "predict_time_sec": 0.0032
+    },
+    "KNN": {
+      "mae": 3.45,
+      "r2": 0.851,
+      "cv_r2_mean": 0.7827,
+      "cv_r2_std": 0.0387,
+      "train_time_sec": 0.0,
+      "predict_time_sec": 0.0627
+    },
+    "RuleBased": {
+      "mae": 4.1,
+      "r2": 0.7997,
+      "cv_r2_mean": null,
+      "cv_r2_std": null,
+      "train_time_sec": 0.0,
+      "predict_time_sec": null
+    }
+  },
+  "classification_comparison": {
+    "RandomForest": {
+      "accuracy": 0.8733,
+      "precision": 0.8718,
+      "recall": 0.8733,
+      "f1": 0.8703,
+      "cv_accuracy_mean": 0.8389,
+      "cv_accuracy_std": 0.0239,
+      "train_time_sec": 0.192,
+      "predict_time_sec": 0.0271,
+      "confusion_matrix": [
+        [
+          12,
+          16,
+          0
+        ],
+        [
+          3,
+          214,
+          42
+        ],
+        [
+          0,
+          32,
+          415
+        ]
+      ]
+    },
+    "XGBoost": {
+      "accuracy": 0.8924,
+      "precision": 0.8915,
+      "recall": 0.8924,
+      "f1": 0.8914,
+      "cv_accuracy_mean": 0.8438,
+      "cv_accuracy_std": 0.0246,
+      "train_time_sec": 1.38,
+      "predict_time_sec": 0.0043,
+      "confusion_matrix": [
+        [
+          16,
+          12,
+          0
+        ],
+        [
+          4,
+          223,
+          32
+        ],
+        [
+          1,
+          30,
+          416
+        ]
+      ]
+    },
+    "LogisticRegression": {
+      "accuracy": 0.8174,
+      "precision": 0.8149,
+      "recall": 0.8174,
+      "f1": 0.8156,
+      "cv_accuracy_mean": 0.8255,
+      "cv_accuracy_std": 0.0262,
+      "train_time_sec": 1.436,
+      "predict_time_sec": 0.0009,
+      "confusion_matrix": [
+        [
+          16,
+          12,
+          0
+        ],
+        [
+          6,
+          187,
+          66
+        ],
+        [
+          0,
+          50,
+          397
+        ]
+      ]
+    }
+  },
+  "best_models": {
+    "regressor": "XGBoost",
+    "classifier": "XGBoost"
+  },
+  "feature_importance_best_regressor": {
+    "car_rating_siguranta": 0.4931,
+    "car_rating_estetica": 0.1048,
+    "car_rating_comfort": 0.0965,
+    "pref_economie": 0.0438,
+    "pref_sport": 0.0353,
+    "budget": 0.0306,
+    "car_rating_sport": 0.0244,
+    "car_rating_economie": 0.0235,
+    "car_putere_cp": 0.0221,
+    "pref_estetica": 0.0192,
+    "car_pret": 0.0189,
+    "pref_siguranta": 0.0176,
+    "car_emisii_co2": 0.017,
+    "price_ratio": 0.0142,
+    "car_numar_locuri": 0.0075,
+    "car_is_hybrid": 0.0061,
+    "car_volum_portbagaj": 0.0054,
+    "pref_comfort": 0.0054,
+    "car_is_suv": 0.0053,
+    "car_consum_mediu": 0.0041,
+    "km_zi": 0.0037,
+    "car_is_sedan": 0.0013,
+    "car_is_coupe": 0.0003,
+    "car_is_electric": 0.0
+  }
+}

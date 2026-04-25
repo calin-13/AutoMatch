@@ -1,12 +1,27 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from models.schemas import UserInput, RecommendationResponse
-from models.database import Car
+from models.database import Car, RecommendationHistory
 from services.scoring import calculate_rule_based_scores
 from services.recommender import get_recommendations
+from services.auth_service import get_current_user, oauth2_scheme
 from config import get_db
+from jose import JWTError, jwt
+from config import SECRET_KEY, ALGORITHM
 
 router = APIRouter(prefix="/api", tags=["recommendations"])
+
+
+def get_optional_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if user_id:
+            from models.database import User
+            return db.query(User).filter(User.id == user_id).first()
+    except Exception:
+        pass
+    return None
 
 
 @router.post("/recommend", response_model=RecommendationResponse)
@@ -14,6 +29,42 @@ def recommend_cars(user_input: UserInput, db: Session = Depends(get_db)):
     try:
         scores = calculate_rule_based_scores(user_input)
         recommendations = get_recommendations(user_input, scores, db)
+        return RecommendationResponse(
+            recommendations=recommendations,
+            user_profile=scores
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/recommend-auth", response_model=RecommendationResponse)
+def recommend_cars_auth(
+    user_input: UserInput,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    try:
+        scores = calculate_rule_based_scores(user_input)
+        recommendations = get_recommendations(user_input, scores, db)
+
+        car_ids = ",".join([str(r.id) for r in recommendations])
+        history = RecommendationHistory(
+            user_id=current_user.id,
+            inaltime=user_input.physiological.inaltime,
+            greutate=user_input.physiological.greutate,
+            buget=user_input.physiological.buget,
+            km_zi=user_input.physiological.km_zi,
+            tip_combustibil=user_input.physiological.tip_combustibil,
+            score_comfort=scores.comfort,
+            score_sport=scores.sport,
+            score_siguranta=scores.siguranta,
+            score_economie=scores.economie,
+            score_estetica=scores.estetica,
+            recommended_cars=car_ids,
+        )
+        db.add(history)
+        db.commit()
+
         return RecommendationResponse(
             recommendations=recommendations,
             user_profile=scores

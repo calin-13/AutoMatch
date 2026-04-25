@@ -1,11 +1,11 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, func
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, func
+from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
 
 
 class Car(Base):
-    """Modelul pentru mașinile din baza de date."""
     __tablename__ = "cars"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -13,30 +13,41 @@ class Car(Base):
     model = Column(String(100), nullable=False)
     an = Column(Integer, nullable=False)
     pret = Column(Float, nullable=False)
-    tip_combustibil = Column(String(20), nullable=False)  # benzina/diesel/electric/hybrid
-    tip_caroserie = Column(String(30), nullable=False)     # sedan/suv/hatchback/coupe/break
+    tip_combustibil = Column(String(20), nullable=False)
+    tip_caroserie = Column(String(30), nullable=False)
     putere_cp = Column(Integer)
-    consum_mediu = Column(Float)  # l/100km sau kWh/100km
+    consum_mediu = Column(Float)
     emisii_co2 = Column(Float)
     lungime_mm = Column(Integer)
     latime_mm = Column(Integer)
     inaltime_mm = Column(Integer)
-    volum_portbagaj = Column(Integer)  # litri
+    volum_portbagaj = Column(Integer)
     numar_locuri = Column(Integer, default=5)
-    rating_siguranta = Column(Float)  # 0-5 (Euro NCAP)
-    rating_comfort = Column(Float)    # 0-5
-    rating_sport = Column(Float)      # 0-5
-    rating_economie = Column(Float)   # 0-5
-    rating_estetica = Column(Float)   # 0-5
+    rating_siguranta = Column(Float)
+    rating_comfort = Column(Float)
+    rating_sport = Column(Float)
+    rating_economie = Column(Float)
+    rating_estetica = Column(Float)
     created_at = Column(DateTime, server_default=func.now())
 
 
-class UserSession(Base):
-    """Sesiunile utilizatorilor pentru tracking."""
-    __tablename__ = "user_sessions"
+class User(Base):
+    __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    session_id = Column(String(100), unique=True, nullable=False)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    username = Column(String(100), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+    recommendations = relationship("RecommendationHistory", back_populates="user")
+
+
+class RecommendationHistory(Base):
+    __tablename__ = "recommendation_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     inaltime = Column(Float)
     greutate = Column(Float)
     buget = Column(Float)
@@ -47,5 +58,7 @@ class UserSession(Base):
     score_siguranta = Column(Float)
     score_economie = Column(Float)
     score_estetica = Column(Float)
-    recommended_car_ids = Column(String(500))  # CSV of car IDs
+    recommended_cars = Column(String(1000))
     created_at = Column(DateTime, server_default=func.now())
+
+    user = relationship("User", back_populates="recommendations")
