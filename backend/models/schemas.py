@@ -4,7 +4,6 @@ from datetime import datetime
 
 
 class PhysiologicalData(BaseModel):
-    """Date ergonomice/practice ale utilizatorului."""
     inaltime: float = Field(..., description="Înălțimea în cm", ge=140, le=220)
     greutate: float = Field(..., description="Greutatea în kg", ge=40, le=200)
     buget: float = Field(..., description="Bugetul în EUR", ge=1000, le=500000)
@@ -13,12 +12,12 @@ class PhysiologicalData(BaseModel):
 
 
 class BehavioralScores(BaseModel):
-    """Scorurile din mini-testul comportamental."""
-    comfort: float = Field(default=0, ge=0, le=15)
-    sport: float = Field(default=0, ge=0, le=15)
-    siguranta: float = Field(default=0, ge=0, le=15)
-    economie: float = Field(default=0, ge=0, le=15)
-    estetica: float = Field(default=0, ge=0, le=15)
+    """Scoruri agregate per axa. Range extins la 0-45 pentru a suporta v2 (15 intrebari)."""
+    comfort: float = Field(default=0, ge=0, le=45)
+    sport: float = Field(default=0, ge=0, le=45)
+    siguranta: float = Field(default=0, ge=0, le=45)
+    economie: float = Field(default=0, ge=0, le=45)
+    estetica: float = Field(default=0, ge=0, le=45)
 
 
 class UserInput(BaseModel):
@@ -39,7 +38,6 @@ class CarRecommendation(BaseModel):
 
 
 class UserProfile(BaseModel):
-    """Profilul calculat al utilizatorului (preferințe normalizate)."""
     comfort: float
     sport: float
     siguranta: float
@@ -52,13 +50,8 @@ class UserProfile(BaseModel):
 class RecommendationResponse(BaseModel):
     recommendations: list[CarRecommendation]
     user_profile: UserProfile
-    recommendation_id: Optional[int] = Field(
-        default=None,
-        description="ID-ul intrării din istoric (doar pentru endpoint-urile autentificate). Folosit la trimiterea feedback-ului.",
-    )
+    recommendation_id: Optional[int] = None
 
-
-# === Profil persistent ===
 
 class UserProfileResponse(BaseModel):
     id: int
@@ -74,6 +67,7 @@ class UserProfileResponse(BaseModel):
     score_economie: Optional[float] = None
     score_estetica: Optional[float] = None
     has_completed_test: bool = False
+    test_version_completed: Optional[int] = None
     is_complete: bool = False
 
     class Config:
@@ -86,23 +80,17 @@ class UserProfileUpdate(BaseModel):
     buget: Optional[float] = Field(None, ge=1000, le=500000)
     km_zi: Optional[float] = Field(None, ge=0, le=500)
     tip_combustibil: Optional[str] = None
-    score_comfort: Optional[float] = Field(None, ge=0, le=15)
-    score_sport: Optional[float] = Field(None, ge=0, le=15)
-    score_siguranta: Optional[float] = Field(None, ge=0, le=15)
-    score_economie: Optional[float] = Field(None, ge=0, le=15)
-    score_estetica: Optional[float] = Field(None, ge=0, le=15)
+    score_comfort: Optional[float] = Field(None, ge=0, le=45)
+    score_sport: Optional[float] = Field(None, ge=0, le=45)
+    score_siguranta: Optional[float] = Field(None, ge=0, le=45)
+    score_economie: Optional[float] = Field(None, ge=0, le=45)
+    score_estetica: Optional[float] = Field(None, ge=0, le=45)
 
-
-# === Feedback ===
 
 class FeedbackCreate(BaseModel):
-    """Trimitere feedback pentru o mașină recomandată."""
-    car_id: int = Field(..., description="ID-ul mașinii pentru care se dă feedback")
-    rating: int = Field(..., ge=-1, le=1, description="-1 (dislike), 0 (neutru), +1 (like)")
-    recommendation_id: Optional[int] = Field(
-        default=None,
-        description="ID-ul intrării din istoric (opțional). Permite analiză contextuală.",
-    )
+    car_id: int
+    rating: int = Field(..., ge=-1, le=1)
+    recommendation_id: Optional[int] = None
     comment: Optional[str] = Field(default=None, max_length=500)
 
 
@@ -121,7 +109,6 @@ class FeedbackResponse(BaseModel):
 
 
 class FeedbackHistoryItem(BaseModel):
-    """Feedback cu detalii despre mașină asociată."""
     id: int
     car_id: int
     car_marca: str
@@ -134,7 +121,6 @@ class FeedbackHistoryItem(BaseModel):
 
 
 class FeedbackStatsItem(BaseModel):
-    """Statistici agregate per mașină."""
     car_id: int
     marca: str
     model: str
@@ -142,10 +128,64 @@ class FeedbackStatsItem(BaseModel):
     dislikes: int
     neutral: int
     total: int
-    score: float = Field(..., description="(likes - dislikes) / total")
+    score: float
 
 
 class FeedbackStatsResponse(BaseModel):
     total_feedbacks: int
     most_liked: list[FeedbackStatsItem]
     most_disliked: list[FeedbackStatsItem]
+
+
+# === Mini-test ===
+
+class TestOptionResponse(BaseModel):
+    id: int
+    order_index: int
+    text: str
+    scores: dict
+
+    class Config:
+        from_attributes = True
+
+
+class TestQuestionResponse(BaseModel):
+    id: int
+    order_index: int
+    text: str
+    options: list[TestOptionResponse]
+
+    class Config:
+        from_attributes = True
+
+
+class TestQuestionsResponse(BaseModel):
+    version: int
+    total: int
+    questions: list[TestQuestionResponse]
+
+
+class TestAnswerInput(BaseModel):
+    question_id: int
+    option_id: int
+
+
+class TestSubmitRequest(BaseModel):
+    version: int = Field(..., description="Versiunea testului (ex: 1 sau 2)")
+    answers: list[TestAnswerInput] = Field(..., min_length=1)
+
+
+class TestSubmitResponse(BaseModel):
+    submission_id: str
+    version: int
+    answered_count: int
+    aggregated_scores: dict = Field(..., description="Suma scorurilor pe cele 5 axe")
+    profile_updated: bool
+
+
+class TestResponseHistoryItem(BaseModel):
+    submission_id: str
+    version: int
+    answered_count: int
+    aggregated_scores: dict
+    submitted_at: datetime

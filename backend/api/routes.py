@@ -28,7 +28,6 @@ def get_optional_user(token: str = Depends(oauth2_scheme), db: Session = Depends
 
 
 def _save_history(db, user_id, user_input, scores, recommendations):
-    """Salveaza istoric si returneaza ID-ul nou creat (pentru feedback)."""
     car_ids = ",".join([str(r.id) for r in recommendations])
     history = RecommendationHistory(
         user_id=user_id,
@@ -172,58 +171,8 @@ def get_all_cars(db: Session = Depends(get_db)):
     }
 
 
-@router.get("/test-questions")
-def get_test_questions():
-    questions = [
-        {
-            "id": 1,
-            "text": "Cand conduci pe autostrada, ce este cel mai important pentru tine?",
-            "options": [
-                {"text": "Sa ma simt in siguranta", "scores": {"siguranta": 3, "comfort": 1}},
-                {"text": "Sa simt puterea motorului", "scores": {"sport": 3, "estetica": 1}},
-                {"text": "Sa consum cat mai putin", "scores": {"economie": 3, "comfort": 1}},
-                {"text": "Sa am un drum lin si silentios", "scores": {"comfort": 3, "siguranta": 1}},
-            ],
-        },
-        {
-            "id": 2,
-            "text": "Ce aspect al unei masini te atrage primul?",
-            "options": [
-                {"text": "Designul exterior", "scores": {"estetica": 3, "sport": 1}},
-                {"text": "Spatiul interior", "scores": {"comfort": 3, "siguranta": 1}},
-                {"text": "Consumul si costurile de intretinere", "scores": {"economie": 3, "siguranta": 1}},
-                {"text": "Performantele tehnice", "scores": {"sport": 3, "estetica": 1}},
-            ],
-        },
-        {
-            "id": 3,
-            "text": "Cum ai descrie stilul tau de condus?",
-            "options": [
-                {"text": "Prudent si atent", "scores": {"siguranta": 3, "economie": 1}},
-                {"text": "Sportiv si dinamic", "scores": {"sport": 3, "estetica": 1}},
-                {"text": "Relaxat si confortabil", "scores": {"comfort": 3, "economie": 1}},
-                {"text": "Eficient si practic", "scores": {"economie": 3, "comfort": 1}},
-            ],
-        },
-        {
-            "id": 4,
-            "text": "Daca ai avea buget nelimitat, ce masina ai alege?",
-            "options": [
-                {"text": "Un SUV mare si sigur (Volvo XC90)", "scores": {"siguranta": 3, "comfort": 2}},
-                {"text": "Un supercar (Ferrari, Lamborghini)", "scores": {"sport": 3, "estetica": 2}},
-                {"text": "O limuzina de lux (Mercedes S-Class)", "scores": {"comfort": 3, "estetica": 2}},
-                {"text": "O masina electrica premium (Tesla)", "scores": {"economie": 2, "sport": 2, "estetica": 1}},
-            ],
-        },
-        {
-            "id": 5,
-            "text": "Ce faci de obicei in weekend cu masina?",
-            "options": [
-                {"text": "Plimbari scurte prin oras", "scores": {"economie": 3, "comfort": 1}},
-                {"text": "Drumuri lungi, excursii", "scores": {"comfort": 3, "siguranta": 1}},
-                {"text": "Merg pe trasee montane/off-road", "scores": {"sport": 2, "siguranta": 2}},
-                {"text": "O folosesc rar, prefer transportul public", "scores": {"economie": 3, "estetica": 1}},
-            ],
-        },
-    ]
-    return {"questions": questions}
+@router.get("/test-questions", deprecated=True, summary="DEPRECATED: foloseste GET /api/test/questions")
+def get_test_questions_legacy(db: Session = Depends(get_db)):
+    """Pastrat pentru compatibilitate inapoi. Returneaza v1."""
+    from api.test_routes import get_questions
+    return get_questions(version=1, db=db)

@@ -70,6 +70,7 @@ def _profile_to_response(profile: UserProfileDB) -> UserProfileResponse:
         score_economie=profile.score_economie,
         score_estetica=profile.score_estetica,
         has_completed_test=profile.has_completed_test,
+        test_version_completed=profile.test_version_completed,
         is_complete=is_complete,
     )
 

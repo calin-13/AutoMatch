@@ -1,6 +1,6 @@
 from sqlalchemy import (
     Column, Integer, String, Float, DateTime, ForeignKey, Boolean,
-    UniqueConstraint, func
+    UniqueConstraint, func, JSON
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
@@ -55,6 +55,11 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    test_responses = relationship(
+        "TestResponse",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
 
 class UserProfile(Base):
@@ -78,6 +83,7 @@ class UserProfile(Base):
     score_estetica = Column(Float, nullable=True)
 
     has_completed_test = Column(Boolean, default=False, nullable=False)
+    test_version_completed = Column(Integer, nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
@@ -115,7 +121,7 @@ class RecommendationFeedback(Base):
     recommendation_id = Column(
         Integer, ForeignKey("recommendation_history.id"), nullable=True, index=True
     )
-    rating = Column(Integer, nullable=False)  # -1, 0, +1
+    rating = Column(Integer, nullable=False)
     comment = Column(String(500), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
@@ -126,3 +132,56 @@ class RecommendationFeedback(Base):
     __table_args__ = (
         UniqueConstraint("user_id", "car_id", "recommendation_id", name="uq_feedback_user_car_rec"),
     )
+
+
+# === Mini-test (versionat, persistent) ===
+
+class TestQuestion(Base):
+    __tablename__ = "test_questions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    version = Column(Integer, nullable=False, index=True)
+    order_index = Column(Integer, nullable=False)
+    text = Column(String(500), nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+    options = relationship(
+        "TestOption",
+        back_populates="question",
+        cascade="all, delete-orphan",
+        order_by="TestOption.order_index",
+    )
+
+    __table_args__ = (
+        UniqueConstraint("version", "order_index", name="uq_question_version_order"),
+    )
+
+
+class TestOption(Base):
+    __tablename__ = "test_options"
+
+    id = Column(Integer, primary_key=True, index=True)
+    question_id = Column(Integer, ForeignKey("test_questions.id"), nullable=False, index=True)
+    order_index = Column(Integer, nullable=False)
+    text = Column(String(500), nullable=False)
+    # JSON cu impacturi pe axe: {"siguranta": 3, "comfort": 1}
+    scores = Column(JSON, nullable=False)
+
+    question = relationship("TestQuestion", back_populates="options")
+
+
+class TestResponse(Base):
+    __tablename__ = "test_responses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    question_id = Column(Integer, ForeignKey("test_questions.id"), nullable=False, index=True)
+    option_id = Column(Integer, ForeignKey("test_options.id"), nullable=False)
+    test_version = Column(Integer, nullable=False)
+    submission_id = Column(String(50), nullable=False, index=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+    user = relationship("User", back_populates="test_responses")
+    question = relationship("TestQuestion")
+    option = relationship("TestOption")
