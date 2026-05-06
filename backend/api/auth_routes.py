@@ -1,7 +1,9 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
-from config import get_db
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from config import get_db, LOGIN_RATE_LIMIT
 from models.database import (
     User, RecommendationHistory, UserProfile as UserProfileDB,
     Recommendation, RecommendationItem, Car
@@ -16,6 +18,8 @@ from services.auth_service import (
 )
 
 auth_router = APIRouter(prefix="/api/auth", tags=["authentication"])
+
+limiter = Limiter(key_func=get_remote_address)
 
 
 class RegisterRequest(BaseModel):
@@ -104,7 +108,9 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
 
 
 @auth_router.post("/login", response_model=TokenResponse)
-def login(req: LoginRequest, db: Session = Depends(get_db)):
+@limiter.limit(LOGIN_RATE_LIMIT)
+def login(request: Request, req: LoginRequest, db: Session = Depends(get_db)):
+    """Rate-limited la valoarea din LOGIN_RATE_LIMIT (default: 5/minute per IP)."""
     user = db.query(User).filter(User.email == req.email).first()
     if not user or not verify_password(req.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Email sau parola incorecta")
@@ -152,7 +158,7 @@ def update_profile(
 @auth_router.get(
     "/history",
     deprecated=True,
-    summary="DEPRECATED: foloseste GET /api/auth/recommendations (schema normalizata)",
+    summary="DEPRECATED: foloseste GET /api/auth/recommendations",
 )
 def get_history_legacy(
     current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
@@ -181,7 +187,6 @@ def get_history_legacy(
 @auth_router.get(
     "/recommendations",
     response_model=RecommendationListResponse,
-    summary="Istoric recomandari (schema normalizata) cu top mașină per sesiune",
 )
 def list_recommendations(
     current_user: User = Depends(get_current_user),
@@ -224,7 +229,6 @@ def list_recommendations(
 @auth_router.get(
     "/recommendations/{rec_id}",
     response_model=RecommendationDetailResponse,
-    summary="Detalii complete pentru o recomandare istorica (cu items + score_details)",
 )
 def get_recommendation_detail(
     rec_id: int,
