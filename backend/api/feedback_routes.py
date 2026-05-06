@@ -11,6 +11,7 @@ from models.schemas import (
     FeedbackStatsItem, FeedbackStatsResponse,
 )
 from services.auth_service import get_current_user
+from services.feedback_service import aggregate_feedback_by_attribute
 
 feedback_router = APIRouter(prefix="/api", tags=["feedback"])
 
@@ -25,17 +26,10 @@ def submit_feedback(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """
-    Trimite feedback (-1/0/+1) pentru o masina.
-    Daca exista deja feedback de la acelasi user pentru aceeasi masina si recomandare,
-    se face UPDATE in loc de INSERT (idempotent).
-    """
-    # Validare existenta masina
     car = db.query(Car).filter(Car.id == payload.car_id).first()
     if car is None:
         raise HTTPException(status_code=404, detail=f"Masina cu id={payload.car_id} nu exista")
 
-    # Validare recommendation_id (daca trimis)
     if payload.recommendation_id is not None:
         rec = (
             db.query(RecommendationHistory)
@@ -51,7 +45,6 @@ def submit_feedback(
                 detail="Recomandarea referita nu exista sau nu apartine acestui utilizator",
             )
 
-    # Cauta feedback existent (acelasi user + masina + recomandare)
     existing = (
         db.query(RecommendationFeedback)
         .filter(
@@ -98,7 +91,6 @@ def get_my_feedback(
         .order_by(RecommendationFeedback.created_at.desc())
         .all()
     )
-
     return [
         FeedbackHistoryItem(
             id=fb.id,
@@ -113,6 +105,21 @@ def get_my_feedback(
         )
         for fb, car in rows
     ]
+
+
+@feedback_router.get(
+    "/auth/feedback-summary",
+    summary="Agregare feedback-ului utilizatorului pe atribute (marca, caroserie, combustibil)",
+)
+def get_my_feedback_summary(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Returneaza preferintele agregate ale user-ului. Util pentru afisare in profil
+    ('Preferi BMW si SUV-uri, eviti diesel') si pentru explicarea re-ranking-ului.
+    """
+    return aggregate_feedback_by_attribute(db, current_user.id)
 
 
 @feedback_router.delete(
@@ -149,10 +156,8 @@ def get_feedback_stats(
     limit: int = 10,
     db: Session = Depends(get_db),
 ):
-    """Statistici agregate per masina. Public (fara auth) - util pentru dashboard public/admin."""
     total = db.query(func.count(RecommendationFeedback.id)).scalar() or 0
 
-    # Agregare per masina
     likes_expr = func.sum(case((RecommendationFeedback.rating == 1, 1), else_=0)).label("likes")
     dislikes_expr = func.sum(case((RecommendationFeedback.rating == -1, 1), else_=0)).label("dislikes")
     neutral_expr = func.sum(case((RecommendationFeedback.rating == 0, 1), else_=0)).label("neutral")
@@ -171,7 +176,6 @@ def get_feedback_stats(
         .join(RecommendationFeedback, RecommendationFeedback.car_id == Car.id)
         .group_by(Car.id, Car.marca, Car.model)
     )
-
     rows = base_query.all()
 
     items = []

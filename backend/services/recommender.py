@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from typing import Optional
 from models.schemas import UserInput, UserProfile, CarRecommendation
 from models.database import Car
 from services.ml_service import (
@@ -6,11 +7,26 @@ from services.ml_service import (
     predict_score as ml_predict,
     explain_prediction as ml_explain,
 )
+from services.feedback_service import (
+    get_user_feedback_with_cars,
+    compute_feedback_adjustment,
+)
 
 
 def get_recommendations(
-    user_input: UserInput, profile: UserProfile, db: Session, top_n: int = 5
+    user_input: UserInput,
+    profile: UserProfile,
+    db: Session,
+    top_n: int = 5,
+    user_id: Optional[int] = None,
 ) -> list[CarRecommendation]:
+    """
+    Pipeline:
+    1. Filtrare candidate (buget, combustibil)
+    2. Scoring ML (sau rule-based fallback)
+    3. Re-ranking pe baza feedback-ului anterior (doar daca user_id e furnizat)
+    4. Top N cu SHAP
+    """
     candidates = _filter_cars(user_input, db)
     cars_by_id = {c.id: c for c in candidates}
 
@@ -19,9 +35,16 @@ def get_recommendations(
     else:
         scored = _score_cars_rule_based(candidates, profile)
 
+    # Re-ranking pe baza feedback-ului (doar pentru utilizatori autentificati)
+    if user_id is not None:
+        feedbacks = get_user_feedback_with_cars(db, user_id)
+        if feedbacks:
+            scored = _apply_feedback_reranking(scored, cars_by_id, feedbacks)
+
     scored.sort(key=lambda x: x.score_total, reverse=True)
     top = scored[:top_n]
 
+    # SHAP explanations doar pentru top N
     if ml_available():
         budget = user_input.physiological.buget
         km_zi = user_input.physiological.km_zi
@@ -49,6 +72,30 @@ def _filter_cars(user_input: UserInput, db: Session) -> list[Car]:
         return filtered
 
     return query.all()
+
+
+def _apply_feedback_reranking(
+    recommendations: list[CarRecommendation],
+    cars_by_id: dict,
+    user_feedbacks: list,
+) -> list[CarRecommendation]:
+    """Adauga feedback_adjustment la fiecare recomandare si actualizeaza score_total."""
+    for rec in recommendations:
+        car = cars_by_id.get(rec.id)
+        if car is None:
+            continue
+
+        adj_result = compute_feedback_adjustment(car, user_feedbacks)
+        adjustment = adj_result["adjustment"]
+
+        # Salveaza detalii in score_details
+        rec.score_details["feedback_adjustment"] = adj_result
+
+        # Aplica ajustarea (clamped la 0-100)
+        new_score = rec.score_total + adjustment
+        rec.score_total = round(max(0.0, min(100.0, new_score)), 1)
+
+    return recommendations
 
 
 def _score_cars_ml(
@@ -87,6 +134,7 @@ def _score_cars_ml(
                 "estetica": round(car.rating_estetica * (profile.estetica / 100), 2),
                 "scoring_method": method,
                 "rule_based_score": rb_score,
+                "ml_score_before_feedback": score,
             }
         ))
 
@@ -97,10 +145,8 @@ def _score_cars_rule_based(
     cars: list[Car], profile: UserProfile
 ) -> list[CarRecommendation]:
     results = []
-
     for car in cars:
         score = _calculate_rule_based_score(car, profile)
-
         results.append(CarRecommendation(
             id=car.id,
             marca=car.marca,
@@ -117,9 +163,10 @@ def _score_cars_rule_based(
                 "economie": round(car.rating_economie * (profile.economie / 100), 2),
                 "estetica": round(car.rating_estetica * (profile.estetica / 100), 2),
                 "scoring_method": "rule_based",
+                "rule_based_score": score,
+                "ml_score_before_feedback": None,
             }
         ))
-
     return results
 
 

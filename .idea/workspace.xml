@@ -6,11 +6,7 @@
   <component name="ChangeListManager">
     <list default="true" id="dfdc47c3-e365-4288-ae9a-f7f085b0b0af" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/api/routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/api/routes.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/models/database.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/models/database.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/models/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/models/schemas.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/database/schema.sql" beforeDir="false" afterPath="$PROJECT_DIR$/database/schema.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/services/recommender.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/services/recommender.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -60,7 +56,9 @@
       <updated>1773078264305</updated>
       <workItem from="1773078265377" duration="20255000" />
       <workItem from="1775116031249" duration="5591000" />
-      <workItem from="1775128317182" duration="29234000" />
+      <workItem from="1775128317182" duration="30238000" />
+      <workItem from="1777288297709" duration="8321000" />
+      <workItem from="1778090547611" duration="482000" />
     </task>
     <servers />
   </component>

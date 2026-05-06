@@ -51,9 +51,10 @@ def _save_history(db, user_id, user_input, scores, recommendations):
 
 @router.post("/recommend", response_model=RecommendationResponse)
 def recommend_cars(user_input: UserInput, db: Session = Depends(get_db)):
+    """Recomandare publica (fara auth, fara feedback re-ranking)."""
     try:
         scores = calculate_rule_based_scores(user_input)
-        recommendations = get_recommendations(user_input, scores, db)
+        recommendations = get_recommendations(user_input, scores, db, user_id=None)
         return RecommendationResponse(
             recommendations=recommendations,
             user_profile=scores,
@@ -69,9 +70,12 @@ def recommend_cars_auth(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
+    """Recomandare cu autentificare. Aplica re-ranking pe baza feedback-ului anterior."""
     try:
         scores = calculate_rule_based_scores(user_input)
-        recommendations = get_recommendations(user_input, scores, db)
+        recommendations = get_recommendations(
+            user_input, scores, db, user_id=current_user.id
+        )
         rec_id = _save_history(db, current_user.id, user_input, scores, recommendations)
         return RecommendationResponse(
             recommendations=recommendations,
@@ -87,6 +91,7 @@ def recommend_from_profile(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
+    """Recomandare din profil persistent. Aplica re-ranking pe baza feedback-ului."""
     profile_db = (
         db.query(UserProfileDB)
         .filter(UserProfileDB.user_id == current_user.id)
@@ -137,7 +142,9 @@ def recommend_from_profile(
 
     try:
         scores = calculate_rule_based_scores(user_input)
-        recommendations = get_recommendations(user_input, scores, db)
+        recommendations = get_recommendations(
+            user_input, scores, db, user_id=current_user.id
+        )
         rec_id = _save_history(db, current_user.id, user_input, scores, recommendations)
         return RecommendationResponse(
             recommendations=recommendations,
@@ -173,6 +180,5 @@ def get_all_cars(db: Session = Depends(get_db)):
 
 @router.get("/test-questions", deprecated=True, summary="DEPRECATED: foloseste GET /api/test/questions")
 def get_test_questions_legacy(db: Session = Depends(get_db)):
-    """Pastrat pentru compatibilitate inapoi. Returneaza v1."""
     from api.test_routes import get_questions
     return get_questions(version=1, db=db)
