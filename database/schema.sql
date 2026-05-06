@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- LEGACY: pastrat pentru compat
 CREATE TABLE IF NOT EXISTS recommendation_history (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -68,6 +69,28 @@ CREATE TABLE IF NOT EXISTS recommendation_history (
     score_estetica FLOAT,
     recommended_cars VARCHAR(1000),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- NORMALIZED: header sesiune recomandare
+CREATE TABLE IF NOT EXISTS recommendations (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    profile_snapshot JSON NOT NULL,
+    scoring_method VARCHAR(20) NOT NULL DEFAULT 'ml',
+    has_feedback_reranking BOOLEAN NOT NULL DEFAULT FALSE,
+    total_candidates INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- NORMALIZED: detaliu per masina recomandata
+CREATE TABLE IF NOT EXISTS recommendation_items (
+    id SERIAL PRIMARY KEY,
+    recommendation_id INTEGER NOT NULL REFERENCES recommendations(id) ON DELETE CASCADE,
+    car_id INTEGER NOT NULL REFERENCES cars(id) ON DELETE CASCADE,
+    rank INTEGER NOT NULL,
+    score_total FLOAT NOT NULL,
+    score_details JSON,
+    CONSTRAINT uq_recitem_rec_rank UNIQUE (recommendation_id, rank)
 );
 
 CREATE TABLE IF NOT EXISTS recommendation_feedback (
@@ -113,8 +136,13 @@ CREATE TABLE IF NOT EXISTS test_responses (
 CREATE INDEX IF NOT EXISTS idx_cars_pret ON cars(pret);
 CREATE INDEX IF NOT EXISTS idx_cars_combustibil ON cars(tip_combustibil);
 CREATE INDEX IF NOT EXISTS idx_cars_caroserie ON cars(tip_caroserie);
+CREATE INDEX IF NOT EXISTS idx_cars_marca ON cars(marca);
 CREATE INDEX IF NOT EXISTS idx_history_user ON recommendation_history(user_id);
 CREATE INDEX IF NOT EXISTS idx_history_created ON recommendation_history(created_at);
+CREATE INDEX IF NOT EXISTS idx_recommendations_user ON recommendations(user_id);
+CREATE INDEX IF NOT EXISTS idx_recommendations_created ON recommendations(created_at);
+CREATE INDEX IF NOT EXISTS idx_recitems_rec ON recommendation_items(recommendation_id);
+CREATE INDEX IF NOT EXISTS idx_recitems_car ON recommendation_items(car_id);
 CREATE INDEX IF NOT EXISTS idx_feedback_user ON recommendation_feedback(user_id);
 CREATE INDEX IF NOT EXISTS idx_feedback_car ON recommendation_feedback(car_id);
 CREATE INDEX IF NOT EXISTS idx_feedback_rec ON recommendation_feedback(recommendation_id);

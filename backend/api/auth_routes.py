@@ -2,13 +2,17 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from config import get_db
-from models.database import User, RecommendationHistory, UserProfile as UserProfileDB
-from models.schemas import UserProfileResponse, UserProfileUpdate
+from models.database import (
+    User, RecommendationHistory, UserProfile as UserProfileDB,
+    Recommendation, RecommendationItem, Car
+)
+from models.schemas import (
+    UserProfileResponse, UserProfileUpdate,
+    RecommendationListResponse, RecommendationListItem,
+    RecommendationDetailResponse, RecommendationItemDetail,
+)
 from services.auth_service import (
-    hash_password,
-    verify_password,
-    create_access_token,
-    get_current_user,
+    hash_password, verify_password, create_access_token, get_current_user,
 )
 
 auth_router = APIRouter(prefix="/api/auth", tags=["authentication"])
@@ -91,7 +95,6 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
-    # Creează profil gol asociat
     profile = UserProfileDB(user_id=user.id)
     db.add(profile)
     db.commit()
@@ -121,7 +124,6 @@ def get_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Returnează profilul persistent. Creează unul gol dacă nu există încă."""
     profile = _get_or_create_profile(current_user.id, db)
     return _profile_to_response(profile)
 
@@ -132,12 +134,9 @@ def update_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Actualizare parțială: doar câmpurile trimise se modifică."""
     profile = _get_or_create_profile(current_user.id, db)
-
     update_data = update.model_dump(exclude_unset=True)
 
-    # Marchează test completat dacă s-au trimis scoruri comportamentale
     test_fields = {"score_comfort", "score_sport", "score_siguranta", "score_economie", "score_estetica"}
     if any(f in update_data for f in test_fields):
         profile.has_completed_test = True
@@ -150,10 +149,13 @@ def update_profile(
     return _profile_to_response(profile)
 
 
-@auth_router.get("/history")
-def get_history(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+@auth_router.get(
+    "/history",
+    deprecated=True,
+    summary="DEPRECATED: foloseste GET /api/auth/recommendations (schema normalizata)",
+)
+def get_history_legacy(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     history = (
         db.query(RecommendationHistory)
@@ -174,3 +176,97 @@ def get_history(
             for h in history
         ],
     }
+
+
+@auth_router.get(
+    "/recommendations",
+    response_model=RecommendationListResponse,
+    summary="Istoric recomandari (schema normalizata) cu top mașină per sesiune",
+)
+def list_recommendations(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    recs = (
+        db.query(Recommendation)
+        .filter(Recommendation.user_id == current_user.id)
+        .order_by(Recommendation.created_at.desc())
+        .all()
+    )
+
+    items = []
+    for r in recs:
+        top_item = r.items[0] if r.items else None
+        top_marca = None
+        top_model = None
+        top_score = None
+        if top_item is not None:
+            car = db.query(Car).filter(Car.id == top_item.car_id).first()
+            if car is not None:
+                top_marca = car.marca
+                top_model = car.model
+            top_score = top_item.score_total
+
+        items.append(RecommendationListItem(
+            id=r.id,
+            scoring_method=r.scoring_method,
+            has_feedback_reranking=r.has_feedback_reranking,
+            items_count=len(r.items),
+            top_car_marca=top_marca,
+            top_car_model=top_model,
+            top_score=top_score,
+            created_at=r.created_at,
+        ))
+
+    return RecommendationListResponse(total=len(items), recommendations=items)
+
+
+@auth_router.get(
+    "/recommendations/{rec_id}",
+    response_model=RecommendationDetailResponse,
+    summary="Detalii complete pentru o recomandare istorica (cu items + score_details)",
+)
+def get_recommendation_detail(
+    rec_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    rec = (
+        db.query(Recommendation)
+        .filter(Recommendation.id == rec_id, Recommendation.user_id == current_user.id)
+        .first()
+    )
+    if rec is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Recomandarea nu exista sau nu apartine acestui utilizator",
+        )
+
+    items_detail = []
+    for item in rec.items:
+        car = db.query(Car).filter(Car.id == item.car_id).first()
+        if car is None:
+            continue
+        items_detail.append(RecommendationItemDetail(
+            rank=item.rank,
+            car_id=car.id,
+            marca=car.marca,
+            model=car.model,
+            an=car.an,
+            pret=car.pret,
+            tip_combustibil=car.tip_combustibil,
+            tip_caroserie=car.tip_caroserie,
+            score_total=item.score_total,
+            score_details=item.score_details or {},
+        ))
+
+    return RecommendationDetailResponse(
+        id=rec.id,
+        user_id=rec.user_id,
+        profile_snapshot=rec.profile_snapshot,
+        scoring_method=rec.scoring_method,
+        has_feedback_reranking=rec.has_feedback_reranking,
+        total_candidates=rec.total_candidates,
+        created_at=rec.created_at,
+        items=items_detail,
+    )

@@ -1,13 +1,22 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func, distinct
 from jose import jwt
+from typing import Optional
 from models.schemas import (
     UserInput,
     RecommendationResponse,
     PhysiologicalData,
     BehavioralScores,
+    CarDetailResponse,
+    CarSearchResponse,
+    StatsResponse,
+    StatsDistributionItem,
 )
-from models.database import Car, RecommendationHistory, UserProfile as UserProfileDB, User
+from models.database import (
+    Car, RecommendationHistory, Recommendation, RecommendationItem,
+    UserProfile as UserProfileDB, User
+)
 from services.scoring import calculate_rule_based_scores
 from services.recommender import get_recommendations
 from services.auth_service import get_current_user, oauth2_scheme
@@ -27,9 +36,20 @@ def get_optional_user(token: str = Depends(oauth2_scheme), db: Session = Depends
     return None
 
 
-def _save_history(db, user_id, user_input, scores, recommendations):
+def _save_history(
+    db, user_id, user_input, scores, recommendations,
+    scoring_method: str = "ml", has_feedback_reranking: bool = False,
+    total_candidates: Optional[int] = None,
+):
+    """
+    Salveaza in AMBELE tabele:
+    - recommendation_history (LEGACY, CSV) pentru compat
+    - recommendations + recommendation_items (NORMALIZED) pentru viitor
+    Returneaza id-ul din legacy (pentru compat cu feedback existent).
+    """
     car_ids = ",".join([str(r.id) for r in recommendations])
-    history = RecommendationHistory(
+
+    legacy = RecommendationHistory(
         user_id=user_id,
         inaltime=user_input.physiological.inaltime,
         greutate=user_input.physiological.greutate,
@@ -43,15 +63,58 @@ def _save_history(db, user_id, user_input, scores, recommendations):
         score_estetica=scores.estetica,
         recommended_cars=car_ids,
     )
-    db.add(history)
+    db.add(legacy)
+    db.flush()
+
+    profile_snapshot = {
+        "physiological": user_input.physiological.model_dump(),
+        "behavioral": user_input.behavioral.model_dump(),
+        "derived_profile": scores.model_dump(),
+    }
+
+    rec = Recommendation(
+        user_id=user_id,
+        profile_snapshot=profile_snapshot,
+        scoring_method=scoring_method,
+        has_feedback_reranking=has_feedback_reranking,
+        total_candidates=total_candidates,
+    )
+    db.add(rec)
+    db.flush()
+
+    for idx, r in enumerate(recommendations, start=1):
+        item = RecommendationItem(
+            recommendation_id=rec.id,
+            car_id=r.id,
+            rank=idx,
+            score_total=r.score_total,
+            score_details=r.score_details,
+        )
+        db.add(item)
+
     db.commit()
-    db.refresh(history)
-    return history.id
+    db.refresh(legacy)
+    db.refresh(rec)
+    return legacy.id  # pastram contractul vechi
+
+
+def _detect_scoring_method(recommendations) -> str:
+    if not recommendations:
+        return "ml"
+    sd = recommendations[0].score_details
+    return sd.get("scoring_method", "ml")
+
+
+def _has_feedback_reranking(recommendations) -> bool:
+    if not recommendations:
+        return False
+    sd = recommendations[0].score_details
+    fb = sd.get("feedback_adjustment")
+    return fb is not None and fb.get("matches", []) != []
 
 
 @router.post("/recommend", response_model=RecommendationResponse)
 def recommend_cars(user_input: UserInput, db: Session = Depends(get_db)):
-    """Recomandare publica (fara auth, fara feedback re-ranking)."""
     try:
         scores = calculate_rule_based_scores(user_input)
         recommendations = get_recommendations(user_input, scores, db, user_id=None)
@@ -70,13 +133,16 @@ def recommend_cars_auth(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    """Recomandare cu autentificare. Aplica re-ranking pe baza feedback-ului anterior."""
     try:
         scores = calculate_rule_based_scores(user_input)
         recommendations = get_recommendations(
             user_input, scores, db, user_id=current_user.id
         )
-        rec_id = _save_history(db, current_user.id, user_input, scores, recommendations)
+        rec_id = _save_history(
+            db, current_user.id, user_input, scores, recommendations,
+            scoring_method=_detect_scoring_method(recommendations),
+            has_feedback_reranking=_has_feedback_reranking(recommendations),
+        )
         return RecommendationResponse(
             recommendations=recommendations,
             user_profile=scores,
@@ -91,7 +157,6 @@ def recommend_from_profile(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    """Recomandare din profil persistent. Aplica re-ranking pe baza feedback-ului."""
     profile_db = (
         db.query(UserProfileDB)
         .filter(UserProfileDB.user_id == current_user.id)
@@ -145,7 +210,11 @@ def recommend_from_profile(
         recommendations = get_recommendations(
             user_input, scores, db, user_id=current_user.id
         )
-        rec_id = _save_history(db, current_user.id, user_input, scores, recommendations)
+        rec_id = _save_history(
+            db, current_user.id, user_input, scores, recommendations,
+            scoring_method=_detect_scoring_method(recommendations),
+            has_feedback_reranking=_has_feedback_reranking(recommendations),
+        )
         return RecommendationResponse(
             recommendations=recommendations,
             user_profile=scores,
@@ -157,11 +226,26 @@ def recommend_from_profile(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# === Catalog masini ===
+
 @router.get("/cars")
-def get_all_cars(db: Session = Depends(get_db)):
-    cars = db.query(Car).all()
+def get_all_cars(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(get_db),
+):
+    total = db.query(func.count(Car.id)).scalar()
+    cars = (
+        db.query(Car)
+        .order_by(Car.id)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
     return {
-        "total": len(cars),
+        "total": total,
+        "page": page,
+        "page_size": page_size,
         "cars": [
             {
                 "id": c.id,
@@ -176,6 +260,113 @@ def get_all_cars(db: Session = Depends(get_db)):
             for c in cars
         ],
     }
+
+
+@router.get("/cars/search", response_model=CarSearchResponse)
+def search_cars(
+    marca: Optional[str] = None,
+    tip_combustibil: Optional[str] = None,
+    tip_caroserie: Optional[str] = None,
+    pret_min: Optional[float] = None,
+    pret_max: Optional[float] = None,
+    putere_min: Optional[int] = None,
+    putere_max: Optional[int] = None,
+    an_min: Optional[int] = None,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    q = db.query(Car)
+
+    if marca:
+        q = q.filter(Car.marca.ilike(f"%{marca}%"))
+    if tip_combustibil:
+        q = q.filter(Car.tip_combustibil == tip_combustibil)
+    if tip_caroserie:
+        q = q.filter(Car.tip_caroserie == tip_caroserie)
+    if pret_min is not None:
+        q = q.filter(Car.pret >= pret_min)
+    if pret_max is not None:
+        q = q.filter(Car.pret <= pret_max)
+    if putere_min is not None:
+        q = q.filter(Car.putere_cp >= putere_min)
+    if putere_max is not None:
+        q = q.filter(Car.putere_cp <= putere_max)
+    if an_min is not None:
+        q = q.filter(Car.an >= an_min)
+
+    total = q.count()
+    cars = q.order_by(Car.pret).offset((page - 1) * page_size).limit(page_size).all()
+
+    return CarSearchResponse(
+        total=total,
+        page=page,
+        page_size=page_size,
+        cars=[CarDetailResponse.model_validate(c) for c in cars],
+    )
+
+
+@router.get("/cars/{car_id}", response_model=CarDetailResponse)
+def get_car_by_id(car_id: int, db: Session = Depends(get_db)):
+    car = db.query(Car).filter(Car.id == car_id).first()
+    if car is None:
+        raise HTTPException(status_code=404, detail=f"Masina cu id={car_id} nu exista")
+    return CarDetailResponse.model_validate(car)
+
+
+@router.get("/stats", response_model=StatsResponse)
+def get_stats(db: Session = Depends(get_db)):
+    total = db.query(func.count(Car.id)).scalar() or 0
+
+    by_brand_rows = (
+        db.query(Car.marca, func.count(Car.id))
+        .group_by(Car.marca)
+        .order_by(func.count(Car.id).desc())
+        .all()
+    )
+    by_fuel_rows = (
+        db.query(Car.tip_combustibil, func.count(Car.id))
+        .group_by(Car.tip_combustibil)
+        .order_by(func.count(Car.id).desc())
+        .all()
+    )
+    by_bodytype_rows = (
+        db.query(Car.tip_caroserie, func.count(Car.id))
+        .group_by(Car.tip_caroserie)
+        .order_by(func.count(Car.id).desc())
+        .all()
+    )
+
+    # Segmente preț
+    segments = [
+        ("economic", 0, 10000),
+        ("mediu", 10000, 25000),
+        ("premium", 25000, 60000),
+        ("lux", 60000, 1_000_000),
+    ]
+    by_price_rows = []
+    for label, lo, hi in segments:
+        count = (
+            db.query(func.count(Car.id))
+            .filter(Car.pret >= lo, Car.pret < hi)
+            .scalar()
+        )
+        by_price_rows.append((label, count or 0))
+
+    avg_pret = db.query(func.avg(Car.pret)).scalar() or 0.0
+    avg_putere = db.query(func.avg(Car.putere_cp)).scalar() or 0.0
+    avg_consum = db.query(func.avg(Car.consum_mediu)).scalar() or 0.0
+
+    return StatsResponse(
+        total_cars=total,
+        by_brand=[StatsDistributionItem(key=str(k), count=int(v)) for k, v in by_brand_rows],
+        by_fuel=[StatsDistributionItem(key=str(k), count=int(v)) for k, v in by_fuel_rows],
+        by_bodytype=[StatsDistributionItem(key=str(k), count=int(v)) for k, v in by_bodytype_rows],
+        by_price_segment=[StatsDistributionItem(key=k, count=v) for k, v in by_price_rows],
+        avg_pret=round(float(avg_pret), 2),
+        avg_putere_cp=round(float(avg_putere), 2),
+        avg_consum=round(float(avg_consum), 2),
+    )
 
 
 @router.get("/test-questions", deprecated=True, summary="DEPRECATED: foloseste GET /api/test/questions")

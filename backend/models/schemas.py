@@ -4,15 +4,14 @@ from datetime import datetime
 
 
 class PhysiologicalData(BaseModel):
-    inaltime: float = Field(..., description="Înălțimea în cm", ge=140, le=220)
-    greutate: float = Field(..., description="Greutatea în kg", ge=40, le=200)
-    buget: float = Field(..., description="Bugetul în EUR", ge=1000, le=500000)
-    km_zi: float = Field(..., description="Km parcurși pe zi", ge=0, le=500)
-    tip_combustibil: str = Field(..., description="benzina/diesel/electric/hybrid")
+    inaltime: float = Field(..., ge=140, le=220)
+    greutate: float = Field(..., ge=40, le=200)
+    buget: float = Field(..., ge=1000, le=500000)
+    km_zi: float = Field(..., ge=0, le=500)
+    tip_combustibil: str
 
 
 class BehavioralScores(BaseModel):
-    """Scoruri agregate per axa. Range extins la 0-45 pentru a suporta v2 (15 intrebari)."""
     comfort: float = Field(default=0, ge=0, le=45)
     sport: float = Field(default=0, ge=0, le=45)
     siguranta: float = Field(default=0, ge=0, le=45)
@@ -33,7 +32,7 @@ class CarRecommendation(BaseModel):
     pret: float
     tip_combustibil: str
     tip_caroserie: str
-    score_total: float = Field(..., description="Scor de potrivire 0-100")
+    score_total: float
     score_details: dict = Field(default_factory=dict)
 
 
@@ -137,8 +136,6 @@ class FeedbackStatsResponse(BaseModel):
     most_disliked: list[FeedbackStatsItem]
 
 
-# === Mini-test ===
-
 class TestOptionResponse(BaseModel):
     id: int
     order_index: int
@@ -171,7 +168,7 @@ class TestAnswerInput(BaseModel):
 
 
 class TestSubmitRequest(BaseModel):
-    version: int = Field(..., description="Versiunea testului (ex: 1 sau 2)")
+    version: int
     answers: list[TestAnswerInput] = Field(..., min_length=1)
 
 
@@ -179,7 +176,7 @@ class TestSubmitResponse(BaseModel):
     submission_id: str
     version: int
     answered_count: int
-    aggregated_scores: dict = Field(..., description="Suma scorurilor pe cele 5 axe")
+    aggregated_scores: dict
     profile_updated: bool
 
 
@@ -189,3 +186,97 @@ class TestResponseHistoryItem(BaseModel):
     answered_count: int
     aggregated_scores: dict
     submitted_at: datetime
+
+
+# === NOI: detalii masina, search, stats ===
+
+class CarDetailResponse(BaseModel):
+    id: int
+    marca: str
+    model: str
+    an: int
+    pret: float
+    tip_combustibil: str
+    tip_caroserie: str
+    putere_cp: Optional[int] = None
+    consum_mediu: Optional[float] = None
+    emisii_co2: Optional[float] = None
+    lungime_mm: Optional[int] = None
+    latime_mm: Optional[int] = None
+    inaltime_mm: Optional[int] = None
+    volum_portbagaj: Optional[int] = None
+    numar_locuri: Optional[int] = None
+    rating_siguranta: Optional[float] = None
+    rating_comfort: Optional[float] = None
+    rating_sport: Optional[float] = None
+    rating_economie: Optional[float] = None
+    rating_estetica: Optional[float] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class CarSearchResponse(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    cars: list[CarDetailResponse]
+
+
+class StatsDistributionItem(BaseModel):
+    key: str
+    count: int
+
+
+class StatsResponse(BaseModel):
+    total_cars: int
+    by_brand: list[StatsDistributionItem]
+    by_fuel: list[StatsDistributionItem]
+    by_bodytype: list[StatsDistributionItem]
+    by_price_segment: list[StatsDistributionItem]
+    avg_pret: float
+    avg_putere_cp: float
+    avg_consum: float
+
+
+# === NOI: recomandari normalizate (replace history) ===
+
+class RecommendationItemDetail(BaseModel):
+    rank: int
+    car_id: int
+    marca: str
+    model: str
+    an: int
+    pret: float
+    tip_combustibil: str
+    tip_caroserie: str
+    score_total: float
+    score_details: dict = Field(default_factory=dict)
+
+
+class RecommendationDetailResponse(BaseModel):
+    id: int
+    user_id: int
+    profile_snapshot: dict
+    scoring_method: str
+    has_feedback_reranking: bool
+    total_candidates: Optional[int] = None
+    created_at: datetime
+    items: list[RecommendationItemDetail]
+
+
+class RecommendationListItem(BaseModel):
+    id: int
+    scoring_method: str
+    has_feedback_reranking: bool
+    items_count: int
+    top_car_marca: Optional[str] = None
+    top_car_model: Optional[str] = None
+    top_score: Optional[float] = None
+    created_at: datetime
+
+
+class RecommendationListResponse(BaseModel):
+    total: int
+    recommendations: list[RecommendationListItem]

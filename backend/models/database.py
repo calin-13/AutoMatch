@@ -43,7 +43,8 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     created_at = Column(DateTime, server_default=func.now())
 
-    recommendations = relationship("RecommendationHistory", back_populates="user")
+    recommendations_legacy = relationship("RecommendationHistory", back_populates="user")
+    recommendations = relationship("Recommendation", back_populates="user", cascade="all, delete-orphan")
     profile = relationship(
         "UserProfile",
         back_populates="user",
@@ -66,9 +67,7 @@ class UserProfile(Base):
     __tablename__ = "user_profiles"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(
-        Integer, ForeignKey("users.id"), unique=True, nullable=False, index=True
-    )
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False, index=True)
 
     inaltime = Column(Float, nullable=True)
     greutate = Column(Float, nullable=True)
@@ -92,6 +91,7 @@ class UserProfile(Base):
 
 
 class RecommendationHistory(Base):
+    """LEGACY: tabel vechi cu CSV string. Pastrat pentru compatibilitate."""
     __tablename__ = "recommendation_history"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -109,7 +109,47 @@ class RecommendationHistory(Base):
     recommended_cars = Column(String(1000))
     created_at = Column(DateTime, server_default=func.now())
 
+    user = relationship("User", back_populates="recommendations_legacy")
+
+
+class Recommendation(Base):
+    """Header pentru o sesiune de recomandare. Normalizat 3NF."""
+    __tablename__ = "recommendations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    profile_snapshot = Column(JSON, nullable=False)  # {physiological, behavioral, derived_profile}
+    scoring_method = Column(String(20), nullable=False, default="ml")  # ml, rule_based
+    has_feedback_reranking = Column(Boolean, default=False, nullable=False)
+    total_candidates = Column(Integer, nullable=True)  # cate masini au trecut filtrarea
+    created_at = Column(DateTime, server_default=func.now(), index=True)
+
     user = relationship("User", back_populates="recommendations")
+    items = relationship(
+        "RecommendationItem",
+        back_populates="recommendation",
+        cascade="all, delete-orphan",
+        order_by="RecommendationItem.rank",
+    )
+
+
+class RecommendationItem(Base):
+    """Detaliu per masina recomandata in cadrul unei sesiuni."""
+    __tablename__ = "recommendation_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    recommendation_id = Column(Integer, ForeignKey("recommendations.id"), nullable=False, index=True)
+    car_id = Column(Integer, ForeignKey("cars.id"), nullable=False, index=True)
+    rank = Column(Integer, nullable=False)
+    score_total = Column(Float, nullable=False)
+    score_details = Column(JSON, nullable=True)  # contine rule_based, ml, shap, feedback_adjustment
+
+    recommendation = relationship("Recommendation", back_populates="items")
+    car = relationship("Car")
+
+    __table_args__ = (
+        UniqueConstraint("recommendation_id", "rank", name="uq_recitem_rec_rank"),
+    )
 
 
 class RecommendationFeedback(Base):
@@ -133,8 +173,6 @@ class RecommendationFeedback(Base):
         UniqueConstraint("user_id", "car_id", "recommendation_id", name="uq_feedback_user_car_rec"),
     )
 
-
-# === Mini-test (versionat, persistent) ===
 
 class TestQuestion(Base):
     __tablename__ = "test_questions"
@@ -165,7 +203,6 @@ class TestOption(Base):
     question_id = Column(Integer, ForeignKey("test_questions.id"), nullable=False, index=True)
     order_index = Column(Integer, nullable=False)
     text = Column(String(500), nullable=False)
-    # JSON cu impacturi pe axe: {"siguranta": 3, "comfort": 1}
     scores = Column(JSON, nullable=False)
 
     question = relationship("TestQuestion", back_populates="options")
