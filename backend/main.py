@@ -1,12 +1,12 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from api.routes import router
 from api.auth_routes import auth_router, limiter
 from api.feedback_routes import feedback_router
 from api.test_routes import test_router
+from api.admin_routes import admin_router
 from config import init_db, SessionLocal, CORS_ORIGINS
 from services.test_service import seed_test_questions
 
@@ -16,7 +16,6 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Rate limiter (slowapi)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -32,6 +31,7 @@ app.include_router(router)
 app.include_router(auth_router)
 app.include_router(feedback_router)
 app.include_router(test_router)
+app.include_router(admin_router)
 
 
 @app.on_event("startup")

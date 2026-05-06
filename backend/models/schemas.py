@@ -280,3 +280,57 @@ class RecommendationListItem(BaseModel):
 class RecommendationListResponse(BaseModel):
     total: int
     recommendations: list[RecommendationListItem]
+
+
+class AdminUserItem(BaseModel):
+    id: int
+    email: str
+    username: str
+    role: str
+    has_profile: bool
+    profile_complete: bool
+    recommendations_count: int
+    feedbacks_count: int
+    created_at: datetime
+
+
+class AdminUsersResponse(BaseModel):
+    total: int
+    users: list[AdminUserItem]
+
+
+class AdminPlatformStats(BaseModel):
+    total_users: int
+    total_admins: int
+    total_recommendations: int
+    total_feedbacks: int
+    feedbacks_positive: int
+    feedbacks_negative: int
+    feedbacks_neutral: int
+    most_recommended_cars: list[dict]
+    most_active_users: list[dict]
+
+
+class AdminMLMetrics(BaseModel):
+    has_metrics: bool
+    regressor: Optional[dict] = None
+    classifier: Optional[dict] = None
+    comparison: Optional[dict] = None
+    feature_importance: Optional[dict] = None
+
+
+class AdminRecentFeedbackItem(BaseModel):
+    id: int
+    user_id: int
+    username: str
+    car_id: int
+    car_marca: str
+    car_model: str
+    rating: int
+    comment: Optional[str] = None
+    created_at: datetime
+
+
+class PromoteRequest(BaseModel):
+    user_id: int
+

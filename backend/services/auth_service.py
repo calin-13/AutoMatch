@@ -22,7 +22,6 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 def create_access_token(data: dict, expires_delta: timedelta = None) -> str:
     to_encode = data.copy()
-    # JWT standard: sub trebuie string
     if "sub" in to_encode and not isinstance(to_encode["sub"], str):
         to_encode["sub"] = str(to_encode["sub"])
     expire = datetime.now(timezone.utc) + (expires_delta or timedelta(hours=24))
@@ -43,7 +42,6 @@ def get_current_user(
         sub = payload.get("sub")
         if sub is None:
             raise credentials_exception
-        # sub vine ca string din token; convertim înapoi la int
         try:
             user_id = int(sub)
         except (TypeError, ValueError):
@@ -55,3 +53,12 @@ def get_current_user(
     if user is None:
         raise credentials_exception
     return user
+
+
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acces interzis. Rol admin necesar.",
+        )
+    return current_user
