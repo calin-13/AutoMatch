@@ -13,19 +13,28 @@ from services.feedback_service import (
 )
 
 
+# MMR config
+MMR_LAMBDA = 0.7
+DIVERSITY_PENALTY_BRAND = 1.0
+DIVERSITY_PENALTY_BODYTYPE = 0.6
+DIVERSITY_PENALTY_FUEL = 0.3
+
+
 def get_recommendations(
     user_input: UserInput,
     profile: UserProfile,
     db: Session,
     top_n: int = 5,
     user_id: Optional[int] = None,
+    use_diversity: bool = False,
 ) -> list[CarRecommendation]:
     """
     Pipeline:
-    1. Filtrare candidate (buget, combustibil)
-    2. Scoring ML (sau rule-based fallback)
-    3. Re-ranking pe baza feedback-ului anterior (doar daca user_id e furnizat)
-    4. Top N cu SHAP
+    1. Filtrare candidate
+    2. Scoring ML / rule-based
+    3. Re-ranking pe baza feedback-ului (autentificat)
+    4. Diversitate MMR (opțional)
+    5. Top N cu SHAP
     """
     candidates = _filter_cars(user_input, db)
     cars_by_id = {c.id: c for c in candidates}
@@ -35,16 +44,19 @@ def get_recommendations(
     else:
         scored = _score_cars_rule_based(candidates, profile)
 
-    # Re-ranking pe baza feedback-ului (doar pentru utilizatori autentificati)
     if user_id is not None:
         feedbacks = get_user_feedback_with_cars(db, user_id)
         if feedbacks:
             scored = _apply_feedback_reranking(scored, cars_by_id, feedbacks)
 
     scored.sort(key=lambda x: x.score_total, reverse=True)
-    top = scored[:top_n]
 
-    # SHAP explanations doar pentru top N
+    # Selectie finala: MMR sau simpla
+    if use_diversity and len(scored) > top_n:
+        top = _apply_mmr_diversity(scored, cars_by_id, top_n)
+    else:
+        top = scored[:top_n]
+
     if ml_available():
         budget = user_input.physiological.buget
         km_zi = user_input.physiological.km_zi
@@ -79,7 +91,6 @@ def _apply_feedback_reranking(
     cars_by_id: dict,
     user_feedbacks: list,
 ) -> list[CarRecommendation]:
-    """Adauga feedback_adjustment la fiecare recomandare si actualizeaza score_total."""
     for rec in recommendations:
         car = cars_by_id.get(rec.id)
         if car is None:
@@ -88,14 +99,83 @@ def _apply_feedback_reranking(
         adj_result = compute_feedback_adjustment(car, user_feedbacks)
         adjustment = adj_result["adjustment"]
 
-        # Salveaza detalii in score_details
         rec.score_details["feedback_adjustment"] = adj_result
-
-        # Aplica ajustarea (clamped la 0-100)
         new_score = rec.score_total + adjustment
         rec.score_total = round(max(0.0, min(100.0, new_score)), 1)
 
     return recommendations
+
+
+def _apply_mmr_diversity(
+    sorted_recs: list[CarRecommendation],
+    cars_by_id: dict,
+    top_n: int,
+) -> list[CarRecommendation]:
+    """
+    Maximal Marginal Relevance: la fiecare pas alegem masina care maximizeaza
+    lambda * relevanta - (1-lambda) * similaritate_max_cu_selectate
+    """
+    if not sorted_recs:
+        return []
+
+    # Normalizez scorurile la 0-1 pentru a combina cu penalitati
+    max_score = max(r.score_total for r in sorted_recs) or 1.0
+    candidates = list(sorted_recs)
+    selected = [candidates.pop(0)]
+
+    while len(selected) < top_n and candidates:
+        best_idx = 0
+        best_mmr = -float("inf")
+
+        for i, cand in enumerate(candidates):
+            cand_car = cars_by_id.get(cand.id)
+            if cand_car is None:
+                continue
+
+            relevance = cand.score_total / max_score
+
+            # Calculez similaritatea maxima fata de orice mașină deja selectată
+            max_similarity = 0.0
+            for sel in selected:
+                sel_car = cars_by_id.get(sel.id)
+                if sel_car is None:
+                    continue
+                sim = _similarity(cand_car, sel_car)
+                if sim > max_similarity:
+                    max_similarity = sim
+
+            mmr = MMR_LAMBDA * relevance - (1 - MMR_LAMBDA) * max_similarity
+
+            if mmr > best_mmr:
+                best_mmr = mmr
+                best_idx = i
+
+        chosen = candidates.pop(best_idx)
+        chosen_car = cars_by_id.get(chosen.id)
+        # Notez diversitatea aplicata (audit pentru frontend)
+        chosen.score_details["diversity_applied"] = True
+        selected.append(chosen)
+
+    for s in selected:
+        s.score_details.setdefault("diversity_applied", True)
+    return selected
+
+
+def _similarity(car_a: Car, car_b: Car) -> float:
+    """Similaritate intre 0 si 1 pe baza atributelor partajate."""
+    sim = 0.0
+    total_weight = (
+        DIVERSITY_PENALTY_BRAND + DIVERSITY_PENALTY_BODYTYPE + DIVERSITY_PENALTY_FUEL
+    )
+
+    if car_a.marca == car_b.marca:
+        sim += DIVERSITY_PENALTY_BRAND
+    if car_a.tip_caroserie == car_b.tip_caroserie:
+        sim += DIVERSITY_PENALTY_BODYTYPE
+    if car_a.tip_combustibil == car_b.tip_combustibil:
+        sim += DIVERSITY_PENALTY_FUEL
+
+    return sim / total_weight if total_weight > 0 else 0.0
 
 
 def _score_cars_ml(

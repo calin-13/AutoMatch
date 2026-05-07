@@ -1,6 +1,9 @@
 import joblib
 import numpy as np
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 _regressor = None
 _classifier = None
@@ -26,7 +29,7 @@ def _load_models():
         clf_path = os.path.join(ml_dir, "rf_classifier.joblib")
 
     if not all(os.path.exists(p) for p in [reg_path, clf_path, feat_path]):
-        print("ML models not found. Using rule-based scoring only.")
+        logger.warning("ML models not found. Using rule-based scoring only.")
         return
 
     _regressor = joblib.load(reg_path)
@@ -36,10 +39,10 @@ def _load_models():
     try:
         import shap
         _explainer = shap.TreeExplainer(_regressor)
-        print(f"ML models loaded from {os.path.basename(reg_path)} / {os.path.basename(clf_path)}.")
-        print("SHAP explainer initialized.")
+        logger.info(f"ML models loaded from {os.path.basename(reg_path)} / {os.path.basename(clf_path)}.")
+        logger.info("SHAP explainer initialized.")
     except Exception as e:
-        print(f"SHAP explainer failed to initialize: {e}")
+        logger.warning(f"SHAP explainer failed to initialize: {e}")
         _explainer = None
 
     _loaded = True

@@ -130,13 +130,14 @@ def recommend_cars(user_input: UserInput, db: Session = Depends(get_db)):
 @router.post("/recommend-auth", response_model=RecommendationResponse)
 def recommend_cars_auth(
     user_input: UserInput,
+    diversity: bool = False,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
     try:
         scores = calculate_rule_based_scores(user_input)
         recommendations = get_recommendations(
-            user_input, scores, db, user_id=current_user.id
+            user_input, scores, db, user_id=current_user.id, use_diversity=diversity
         )
         rec_id = _save_history(
             db, current_user.id, user_input, scores, recommendations,
@@ -154,6 +155,7 @@ def recommend_cars_auth(
 
 @router.post("/recommend-from-profile", response_model=RecommendationResponse)
 def recommend_from_profile(
+    diversity: bool = False,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -208,7 +210,7 @@ def recommend_from_profile(
     try:
         scores = calculate_rule_based_scores(user_input)
         recommendations = get_recommendations(
-            user_input, scores, db, user_id=current_user.id
+            user_input, scores, db, user_id=current_user.id, use_diversity=diversity
         )
         rec_id = _save_history(
             db, current_user.id, user_input, scores, recommendations,
