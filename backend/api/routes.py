@@ -12,6 +12,8 @@ from models.schemas import (
     CarSearchResponse,
     StatsResponse,
     StatsDistributionItem,
+    SessionFeedbackCreate,
+    SessionFeedbackResponse,
 )
 from models.database import (
     Car, RecommendationHistory, Recommendation, RecommendationItem,
@@ -95,7 +97,7 @@ def _save_history(
     db.commit()
     db.refresh(legacy)
     db.refresh(rec)
-    return legacy.id  # pastram contractul vechi
+    return {"legacy_id": legacy.id, "session_id": rec.id}
 
 
 def _detect_scoring_method(recommendations) -> str:
@@ -139,7 +141,7 @@ def recommend_cars_auth(
         recommendations = get_recommendations(
             user_input, scores, db, user_id=current_user.id, use_diversity=diversity
         )
-        rec_id = _save_history(
+        ids = _save_history(
             db, current_user.id, user_input, scores, recommendations,
             scoring_method=_detect_scoring_method(recommendations),
             has_feedback_reranking=_has_feedback_reranking(recommendations),
@@ -147,7 +149,8 @@ def recommend_cars_auth(
         return RecommendationResponse(
             recommendations=recommendations,
             user_profile=scores,
-            recommendation_id=rec_id,
+            recommendation_id=ids["legacy_id"],
+            session_id=ids["session_id"],
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -208,19 +211,36 @@ def recommend_from_profile(
     )
 
     try:
+        # Calculez total masini si pool-ul de candidati (pentru transparenta in UI)
+        total_in_db = db.query(func.count(Car.id)).scalar() or 0
+        budget_cap = user_input.physiological.buget * 1.1
+        fuel_pref = user_input.physiological.tip_combustibil
+        if fuel_pref and fuel_pref != "orice":
+            total_candidates = db.query(func.count(Car.id)).filter(
+                Car.pret <= budget_cap, Car.tip_combustibil == fuel_pref
+            ).scalar() or 0
+            if total_candidates == 0:
+                total_candidates = db.query(func.count(Car.id)).filter(Car.pret <= budget_cap).scalar() or 0
+        else:
+            total_candidates = db.query(func.count(Car.id)).filter(Car.pret <= budget_cap).scalar() or 0
+
         scores = calculate_rule_based_scores(user_input)
         recommendations = get_recommendations(
             user_input, scores, db, user_id=current_user.id, use_diversity=diversity
         )
-        rec_id = _save_history(
+        ids = _save_history(
             db, current_user.id, user_input, scores, recommendations,
             scoring_method=_detect_scoring_method(recommendations),
             has_feedback_reranking=_has_feedback_reranking(recommendations),
+            total_candidates=total_candidates,
         )
         return RecommendationResponse(
             recommendations=recommendations,
             user_profile=scores,
-            recommendation_id=rec_id,
+            recommendation_id=ids["legacy_id"],
+            session_id=ids["session_id"],
+            total_candidates=total_candidates,
+            total_in_db=total_in_db,
         )
     except HTTPException:
         raise
@@ -368,6 +388,38 @@ def get_stats(db: Session = Depends(get_db)):
         avg_pret=round(float(avg_pret), 2),
         avg_putere_cp=round(float(avg_putere), 2),
         avg_consum=round(float(avg_consum), 2),
+    )
+
+
+@router.post(
+    "/recommendations/{rec_id}/feedback",
+    response_model=SessionFeedbackResponse,
+    summary="Trimite evaluarea finala (rating 1-5 + comentariu) pentru o sesiune de recomandare",
+)
+def submit_session_feedback(
+    rec_id: int,
+    payload: SessionFeedbackCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    rec = (
+        db.query(Recommendation)
+        .filter(Recommendation.id == rec_id, Recommendation.user_id == current_user.id)
+        .first()
+    )
+    if rec is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Recomandarea {rec_id} nu exista sau nu apartine acestui utilizator",
+        )
+    rec.session_rating = payload.rating
+    rec.session_comment = payload.comment
+    db.commit()
+    db.refresh(rec)
+    return SessionFeedbackResponse(
+        id=rec.id,
+        rating=rec.session_rating,
+        comment=rec.session_comment,
     )
 
 

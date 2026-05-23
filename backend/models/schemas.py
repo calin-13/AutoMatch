@@ -50,6 +50,9 @@ class RecommendationResponse(BaseModel):
     recommendations: list[CarRecommendation]
     user_profile: UserProfile
     recommendation_id: Optional[int] = None
+    session_id: Optional[int] = None
+    total_candidates: Optional[int] = None
+    total_in_db: Optional[int] = None
 
 
 class UserProfileResponse(BaseModel):
@@ -180,12 +183,29 @@ class TestSubmitResponse(BaseModel):
     profile_updated: bool
 
 
+class TestAnswerItem(BaseModel):
+    question_id: int
+    option_id: int
+
+
 class TestResponseHistoryItem(BaseModel):
     submission_id: str
     version: int
     answered_count: int
     aggregated_scores: dict
+    answers: list[TestAnswerItem] = []
     submitted_at: datetime
+
+
+class SessionFeedbackCreate(BaseModel):
+    rating: int = Field(..., ge=1, le=5)
+    comment: Optional[str] = Field(default=None, max_length=1000)
+
+
+class SessionFeedbackResponse(BaseModel):
+    id: int
+    rating: int
+    comment: Optional[str] = None
 
 
 # === NOI: detalii masina, search, stats ===

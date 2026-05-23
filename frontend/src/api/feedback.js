@@ -8,4 +8,14 @@ export const feedbackApi = {
     const { data } = await client.post('/api/feedback', payload)
     return data
   },
+
+  async getHistory() {
+    const { data } = await client.get('/api/auth/feedback')
+    return data
+  },
+
+  async getSummary() {
+    const { data } = await client.get('/api/feedback/stats')
+    return data
+  },
 }

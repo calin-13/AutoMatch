@@ -25,6 +25,7 @@ limiter = Limiter(key_func=get_remote_address)
 class RegisterRequest(BaseModel):
     email: EmailStr
     username: str
+    role: str = "user"
     password: str
 
 
@@ -37,12 +38,14 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str
     username: str
+    role: str = "user"
 
 
 class UserResponse(BaseModel):
     id: int
     email: str
     username: str
+    role: str = "user"
 
 
 def _get_or_create_profile(user_id: int, db: Session) -> UserProfileDB:
@@ -121,7 +124,7 @@ def login(request: Request, req: LoginRequest, db: Session = Depends(get_db)):
 @auth_router.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)):
     return UserResponse(
-        id=current_user.id, email=current_user.email, username=current_user.username
+        id=current_user.id, email=current_user.email, username=current_user.username, role=current_user.role
     )
 
 

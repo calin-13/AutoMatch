@@ -2,7 +2,7 @@ import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 
 export default function Navbar() {
-  const { isAuthenticated, user, logout } = useAuth()
+  const { isAuthenticated, isAdmin, user, logout } = useAuth()
   const navigate = useNavigate()
 
   function handleLogout() {
@@ -26,6 +26,16 @@ export default function Navbar() {
             <NavLink to="/recommendations" className={linkClass}>Recomandări</NavLink>
           )}
           <NavLink to="/catalog" className={linkClass}>Catalog</NavLink>
+          {isAuthenticated && (
+            <NavLink to="/activity" className={linkClass}>Activitate</NavLink>
+          )}
+          {isAdmin && (
+            <NavLink to="/admin" className={({ isActive }) =>
+              `transition ${isActive ? 'text-accent' : 'text-accent/70 hover:text-accent'}`
+            }>
+              Admin
+            </NavLink>
+          )}
         </nav>
 
         <div className="flex items-center gap-4 flex-shrink-0">

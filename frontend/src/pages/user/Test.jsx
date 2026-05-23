@@ -16,6 +16,22 @@ export default function Test() {
       try {
         const data = await testApi.getQuestions(2)
         setQuestions(data.questions || data || [])
+        // Pre-completeaza raspunsurile din ultima submisie (daca exista)
+        try {
+          const responses = await testApi.getMyResponses()
+          const latest = Array.isArray(responses)
+            ? responses.find(r => r.version === 2)
+            : null
+          if (latest && Array.isArray(latest.answers)) {
+            const map = {}
+            latest.answers.forEach(a => {
+              map[a.question_id] = a.option_id
+            })
+            setAnswers(map)
+          }
+        } catch (e) {
+          // ignora - userul nu are raspunsuri vechi
+        }
       } catch (err) {
         setError('Nu s-au putut încărca întrebările. Verifică dacă serverul rulează.')
       } finally {
@@ -58,7 +74,7 @@ export default function Test() {
   const selectedOptionId = answers[current.id]
   const isAnswered = selectedOptionId !== undefined
   const isLast = currentIndex === total - 1
-  const progressPct = ((currentIndex + (isAnswered ? 1 : 0)) / total) * 100
+  const progressPct = (Object.keys(answers).length / total) * 100
 
   function selectOption(optionId) {
     setAnswers({ ...answers, [current.id]: optionId })
@@ -155,7 +171,7 @@ export default function Test() {
         {isLast ? (
           <button
             onClick={submit}
-            disabled={!isAnswered || submitting}
+            disabled={Object.keys(answers).length === 0 || submitting}
             className="px-6 py-3 bg-ink text-canvas font-medium hover:bg-ink/90 transition disabled:opacity-50"
           >
             {submitting ? 'Se trimit...' : 'Trimite răspunsurile'}
@@ -163,7 +179,6 @@ export default function Test() {
         ) : (
           <button
             onClick={goNext}
-            disabled={!isAnswered}
             className="px-6 py-3 bg-ink text-canvas font-medium hover:bg-ink/90 transition disabled:opacity-50"
           >
             Continuă →

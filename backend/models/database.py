@@ -121,6 +121,8 @@ class Recommendation(Base):
     scoring_method = Column(String(20), nullable=False, default="ml")
     has_feedback_reranking = Column(Boolean, default=False, nullable=False)
     total_candidates = Column(Integer, nullable=True)
+    session_rating = Column(Integer, nullable=True)
+    session_comment = Column(String(1000), nullable=True)
     created_at = Column(DateTime, server_default=func.now(), index=True)
 
     user = relationship("User", back_populates="recommendations")

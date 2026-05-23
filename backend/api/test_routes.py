@@ -10,6 +10,7 @@ from models.database import (
 from models.schemas import (
     TestQuestionsResponse, TestQuestionResponse, TestOptionResponse,
     TestSubmitRequest, TestSubmitResponse, TestResponseHistoryItem,
+    TestAnswerItem,
 )
 from services.auth_service import get_current_user
 from services.test_service import aggregate_scores_from_options, LATEST_VERSION
@@ -185,10 +186,11 @@ def get_my_responses(
     )
 
     # Grupeaza pe submission_id
-    by_submission = defaultdict(lambda: {"options": [], "version": None, "submitted_at": None})
+    by_submission = defaultdict(lambda: {"options": [], "answers": [], "version": None, "submitted_at": None})
     for resp, opt in rows:
         b = by_submission[resp.submission_id]
         b["options"].append(opt)
+        b["answers"].append(TestAnswerItem(question_id=resp.question_id, option_id=resp.option_id))
         b["version"] = resp.test_version
         if b["submitted_at"] is None or resp.created_at > b["submitted_at"]:
             b["submitted_at"] = resp.created_at
@@ -202,6 +204,7 @@ def get_my_responses(
                 version=data["version"],
                 answered_count=len(data["options"]),
                 aggregated_scores=scores,
+                answers=data["answers"],
                 submitted_at=data["submitted_at"],
             )
         )

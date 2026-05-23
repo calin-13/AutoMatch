@@ -50,14 +50,16 @@ def submit_feedback(
         .filter(
             RecommendationFeedback.user_id == current_user.id,
             RecommendationFeedback.car_id == payload.car_id,
-            RecommendationFeedback.recommendation_id == payload.recommendation_id,
         )
+        .order_by(RecommendationFeedback.created_at.desc())
         .first()
     )
 
     if existing is not None:
         existing.rating = payload.rating
         existing.comment = payload.comment
+        if payload.recommendation_id is not None:
+            existing.recommendation_id = payload.recommendation_id
         db.commit()
         db.refresh(existing)
         return existing
