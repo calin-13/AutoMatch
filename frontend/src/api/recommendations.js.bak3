@@ -1,16 +1,11 @@
 import client from './client'
+
 export const recommendationsApi = {
-  async getFromProfile(diversity = false, brands = []) {
-    const params = new URLSearchParams()
-    if (diversity) params.set('diversity', 'true')
-    if (brands && brands.length > 0) params.set('brands', brands.join(','))
-    const qs = params.toString()
-    const url = '/api/recommend-from-profile' + (qs ? '?' + qs : '')
+  async getFromProfile(diversity = false) {
+    const url = diversity
+      ? '/api/recommend-from-profile?diversity=true'
+      : '/api/recommend-from-profile'
     const { data } = await client.post(url)
-    return data
-  },
-  async getBrands() {
-    const { data } = await client.get('/api/cars/brands')
     return data
   },
   async getHistory() {

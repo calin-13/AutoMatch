@@ -74,15 +74,14 @@ def get_recommendations(
 def _filter_cars(user_input: UserInput, db: Session) -> list[Car]:
     budget = user_input.physiological.buget
     fuel_pref = user_input.physiological.tip_combustibil
-
+    preferred_brands = user_input.preferred_brands
     query = db.query(Car).filter(Car.pret <= budget * 1.1)
-
     if fuel_pref and fuel_pref != "orice":
-        filtered = query.filter(Car.tip_combustibil == fuel_pref).all()
-        if not filtered:
-            filtered = db.query(Car).filter(Car.pret <= budget * 1.1).all()
-        return filtered
-
+        fuel_q = query.filter(Car.tip_combustibil == fuel_pref)
+        if fuel_q.count() > 0:
+            query = fuel_q
+    if preferred_brands:
+        query = query.filter(Car.marca.in_(preferred_brands))
     return query.all()
 
 

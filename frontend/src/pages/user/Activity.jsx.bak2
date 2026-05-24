@@ -15,19 +15,6 @@ function autovitUrl(marca, model) {
   const slug = (str) => (str || '').toString().toLowerCase().trim().replace(/\s+/g, '-')
   return `https://www.autovit.ro/autoturisme/${slug(marca)}/${slug(model)}`
 }
-function groupConsecutiveByTopCar(recs) {
-  const grouped = []
-  recs.forEach(rec => {
-    const topKey = `${rec.top_car_marca || ''}-${rec.top_car_model || ''}`
-    const last = grouped[grouped.length - 1]
-    if (last && last.topKey === topKey) {
-      last.count++
-    } else {
-      grouped.push({ topKey, count: 1, rec })
-    }
-  })
-  return grouped
-}
 
 function PreferencesSummary({ summary }) {
   function getCategory(...keys) {
@@ -187,8 +174,7 @@ export default function Activity() {
           </p>
         ) : (
           <div className="space-y-3">
-            {groupConsecutiveByTopCar(recommendations).slice(0, 10).map((group) => {
-              const rec = group.rec
+            {recommendations.slice(0, 10).map((rec) => {
               const topCar = rec.top_car
                 || rec.car
                 || (rec.items?.[0])
@@ -199,9 +185,6 @@ export default function Activity() {
                   <div className="flex-1">
                     <div className="text-xs font-mono text-ink-muted mb-1">
                       {formatDate(rec.created_at)}
-                      {group.count > 1 && (
-                        <span className="ml-3 text-ink-subtle">· {group.count} sesiuni consecutive cu același rezultat</span>
-                      )}
                     </div>
                     {topCar ? (
                       <div className="text-sm text-ink">

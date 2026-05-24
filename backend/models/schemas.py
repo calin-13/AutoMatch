@@ -22,6 +22,7 @@ class BehavioralScores(BaseModel):
 class UserInput(BaseModel):
     physiological: PhysiologicalData
     behavioral: BehavioralScores
+    preferred_brands: list[str] | None = None
 
 
 class CarRecommendation(BaseModel):

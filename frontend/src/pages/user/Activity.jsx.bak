@@ -11,37 +11,13 @@ function formatDate(dateStr) {
     hour: '2-digit', minute: '2-digit',
   })
 }
-function autovitUrl(marca, model) {
-  const slug = (str) => (str || '').toString().toLowerCase().trim().replace(/\s+/g, '-')
-  return `https://www.autovit.ro/autoturisme/${slug(marca)}/${slug(model)}`
-}
-function groupConsecutiveByTopCar(recs) {
-  const grouped = []
-  recs.forEach(rec => {
-    const topKey = `${rec.top_car_marca || ''}-${rec.top_car_model || ''}`
-    const last = grouped[grouped.length - 1]
-    if (last && last.topKey === topKey) {
-      last.count++
-    } else {
-      grouped.push({ topKey, count: 1, rec })
-    }
-  })
-  return grouped
-}
 
 function PreferencesSummary({ summary }) {
   function getCategory(...keys) {
     for (const k of keys) {
       if (summary?.[k]) {
         const data = summary[k]
-        if (Array.isArray(data)) {
-          return data.map(item => ({
-            name: item.name || item.key || '',
-            likes: item.likes ?? 0,
-            dislikes: item.dislikes ?? 0,
-            net: item.net ?? ((item.likes ?? 0) - (item.dislikes ?? 0)),
-          }))
-        }
+        if (Array.isArray(data)) return data
         return Object.entries(data).map(([name, stats]) => ({
           name,
           likes: stats?.likes ?? 0,
@@ -187,21 +163,14 @@ export default function Activity() {
           </p>
         ) : (
           <div className="space-y-3">
-            {groupConsecutiveByTopCar(recommendations).slice(0, 10).map((group) => {
-              const rec = group.rec
-              const topCar = rec.top_car
-                || rec.car
-                || (rec.items?.[0])
-                || (rec.top_car_marca ? { marca: rec.top_car_marca, model: rec.top_car_model } : null)
-              const matchPct = rec.top_score ? Math.round(rec.top_score) : null
+            {recommendations.slice(0, 10).map((rec) => {
+              const topCar = rec.top_car || rec.car || (rec.items?.[0]) || null
+              const carId = topCar?.id ?? topCar?.car_id
               return (
                 <div key={rec.id} className="border border-line bg-surface px-5 py-4 flex items-center justify-between gap-4">
-                  <div className="flex-1">
+                  <div>
                     <div className="text-xs font-mono text-ink-muted mb-1">
                       {formatDate(rec.created_at)}
-                      {group.count > 1 && (
-                        <span className="ml-3 text-ink-subtle">· {group.count} sesiuni consecutive cu același rezultat</span>
-                      )}
                     </div>
                     {topCar ? (
                       <div className="text-sm text-ink">
@@ -209,21 +178,15 @@ export default function Activity() {
                         {rec.items_count && (
                           <span className="text-ink-muted"> · {rec.items_count} recomandări</span>
                         )}
-                        {matchPct !== null && (
-                          <span className="text-ink-muted"> · {matchPct}% potrivire</span>
-                        )}
                       </div>
                     ) : (
                       <div className="text-sm text-ink-muted">Sesiune #{rec.id}</div>
                     )}
                   </div>
-                  {topCar && (
-                    <button
-                      onClick={() => window.open(autovitUrl(topCar.marca, topCar.model), '_blank', 'noopener,noreferrer')}
-                      className="text-sm text-ink-muted hover:text-accent transition flex-shrink-0"
-                    >
-                      Vezi anunțuri →
-                    </button>
+                  {carId && (
+                    <Link to={`/cars/${carId}`} className="text-sm text-ink-muted hover:text-accent transition flex-shrink-0">
+                      Vezi →
+                    </Link>
                   )}
                 </div>
               )
@@ -243,14 +206,13 @@ export default function Activity() {
         ) : (
           <div className="space-y-3">
             {feedbacks.slice(0, 20).map((fb) => {
-              const carMarca = fb.car?.marca || fb.car_marca
-              const carModel = fb.car?.model || fb.car_model
-              const carId = fb.car?.id || fb.car_id
-              const carName = (carMarca && carModel) ? `${carMarca} ${carModel}` : `Mașina #${carId}`
+              const car = fb.car || fb
+              const carId = car?.id || fb?.car_id
+              const carName = (car?.marca && car?.model) ? `${car.marca} ${car.model}` : `Mașina #${carId}`
               const rating = fb.rating
               return (
                 <div key={fb.id} className="border border-line bg-surface px-5 py-4 flex items-center justify-between gap-4">
-                  <div className="flex-1">
+                  <div>
                     <div className="text-xs font-mono text-ink-muted mb-1">
                       {formatDate(fb.created_at)}
                     </div>
@@ -262,18 +224,10 @@ export default function Activity() {
                       <span className="text-sm text-ink font-medium">{carName}</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-5 flex-shrink-0">
+                  <div className="flex-shrink-0">
                     {rating === 1 && <span className="text-xs font-mono uppercase tracking-widest text-accent">Îmi place</span>}
                     {rating === -1 && <span className="text-xs font-mono uppercase tracking-widest text-ink-muted">Nu-mi place</span>}
                     {(rating === 0 || rating == null) && <span className="text-xs font-mono uppercase tracking-widest text-ink-subtle">Neutru</span>}
-                    {carMarca && carModel && (
-                      <button
-                        onClick={() => window.open(autovitUrl(carMarca, carModel), '_blank', 'noopener,noreferrer')}
-                        className="text-sm text-ink-muted hover:text-accent transition"
-                      >
-                        Anunțuri →
-                      </button>
-                    )}
                   </div>
                 </div>
               )

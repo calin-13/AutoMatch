@@ -159,6 +159,7 @@ def recommend_cars_auth(
 @router.post("/recommend-from-profile", response_model=RecommendationResponse)
 def recommend_from_profile(
     diversity: bool = False,
+    brands: str | None = None,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -210,20 +211,23 @@ def recommend_from_profile(
         ),
     )
 
+    # Injectez marcile preferate din query param
+    if brands:
+        user_input.preferred_brands = [b.strip() for b in brands.split(",") if b.strip()]
     try:
         # Calculez total masini si pool-ul de candidati (pentru transparenta in UI)
         total_in_db = db.query(func.count(Car.id)).scalar() or 0
         budget_cap = user_input.physiological.buget * 1.1
         fuel_pref = user_input.physiological.tip_combustibil
+        preferred_brands = user_input.preferred_brands or []
+        base_filter = [Car.pret <= budget_cap]
         if fuel_pref and fuel_pref != "orice":
-            total_candidates = db.query(func.count(Car.id)).filter(
-                Car.pret <= budget_cap, Car.tip_combustibil == fuel_pref
-            ).scalar() or 0
-            if total_candidates == 0:
-                total_candidates = db.query(func.count(Car.id)).filter(Car.pret <= budget_cap).scalar() or 0
-        else:
-            total_candidates = db.query(func.count(Car.id)).filter(Car.pret <= budget_cap).scalar() or 0
-
+            fuel_count = db.query(func.count(Car.id)).filter(*base_filter, Car.tip_combustibil == fuel_pref).scalar() or 0
+            if fuel_count > 0:
+                base_filter.append(Car.tip_combustibil == fuel_pref)
+        if preferred_brands:
+            base_filter.append(Car.marca.in_(preferred_brands))
+        total_candidates = db.query(func.count(Car.id)).filter(*base_filter).scalar() or 0
         scores = calculate_rule_based_scores(user_input)
         recommendations = get_recommendations(
             user_input, scores, db, user_id=current_user.id, use_diversity=diversity
@@ -326,6 +330,18 @@ def search_cars(
         page_size=page_size,
         cars=[CarDetailResponse.model_validate(c) for c in cars],
     )
+
+
+@router.get("/cars/brands")
+def get_car_brands(db: Session = Depends(get_db)):
+    """Returneaza lista de marci distincte cu numarul de masini per marca."""
+    results = (
+        db.query(Car.marca, func.count(Car.id).label("count"))
+        .group_by(Car.marca)
+        .order_by(func.count(Car.id).desc())
+        .all()
+    )
+    return [{"marca": m, "count": c} for m, c in results]
 
 
 @router.get("/cars/{car_id}", response_model=CarDetailResponse)

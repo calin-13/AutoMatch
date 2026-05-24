@@ -118,31 +118,20 @@ export default function Recommendations() {
   const [sessionComment, setSessionComment] = useState('')
   const [sessionSubmitting, setSessionSubmitting] = useState(false)
   const [sessionSubmitted, setSessionSubmitted] = useState(false)
-  const [availableBrands, setAvailableBrands] = useState([])
-  const [selectedBrands, setSelectedBrands] = useState([])
-
-  const toggleBrand = (marca) => {
-    setSelectedBrands(prev =>
-      prev.includes(marca) ? prev.filter(b => b !== marca) : [...prev, marca]
-    )
-  }
 
   useEffect(() => {
     loadRecommendations()
-  }, [diversity, selectedBrands])
+  }, [diversity])
 
   useEffect(() => {
     loadFeedbackHistory()
-  }, [])
-  useEffect(() => {
-    recommendationsApi.getBrands().then(setAvailableBrands).catch(() => {})
   }, [])
 
   async function loadRecommendations() {
     setLoading(true)
     setError(null)
     try {
-      const data = await recommendationsApi.getFromProfile(diversity, selectedBrands)
+      const data = await recommendationsApi.getFromProfile(diversity)
       const list = data.recommendations || data.items || (Array.isArray(data) ? data : [])
       const prefs = data.profile || data.preferences || data.user_profile || null
       if (prefs) setProfile(prefs)
@@ -294,37 +283,6 @@ export default function Recommendations() {
         <p className="text-lg text-ink-muted max-w-2xl">
           Cele {recs.length} mașini care se potrivesc cel mai bine profilului tău. Pentru fiecare vezi motivele exacte și poți marca ce-ți place sau nu — recomandările viitoare se vor adapta.
         </p>
-        {availableBrands.length > 0 && (
-          <div className="mb-8">
-            <div className="text-xs font-mono text-ink-muted mb-3 tracking-wider">FILTREAZĂ DUPĂ MARCĂ</div>
-            <div className="flex flex-wrap gap-2">
-              {availableBrands.map(b => {
-                const isSelected = selectedBrands.includes(b.marca)
-                return (
-                  <button
-                    key={b.marca}
-                    onClick={() => toggleBrand(b.marca)}
-                    className={
-                      isSelected
-                        ? "px-3 py-1.5 border border-accent bg-accent text-white text-sm transition"
-                        : "px-3 py-1.5 border border-line bg-surface text-ink text-sm hover:border-accent transition"
-                    }
-                  >
-                    {b.marca} <span className="opacity-60 ml-1">{b.count}</span>
-                  </button>
-                )
-              })}
-              {selectedBrands.length > 0 && (
-                <button
-                  onClick={() => setSelectedBrands([])}
-                  className="px-3 py-1.5 text-sm text-ink-muted hover:text-accent transition"
-                >
-                  Șterge filtrul
-                </button>
-              )}
-            </div>
-          </div>
-        )}
         {poolInfo.candidates !== null && poolInfo.total !== null && (
           <p className="text-sm text-ink-muted mt-4 max-w-2xl">
             Sistemul a analizat <span className="font-mono text-ink">{poolInfo.candidates}</span> mașini compatibile cu bugetul și combustibilul tău, din <span className="font-mono text-ink">{poolInfo.total}</span> mașini totale din catalog.
