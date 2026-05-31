@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
 import { profileApi } from '../../api/profile'
+import BudgetCalculatorModal from '../../components/BudgetCalculatorModal'
 
 const FUEL_TYPES = [
   { value: 'benzina', label: 'Benzină' },
@@ -29,8 +30,10 @@ export default function Profile() {
   const [loading, setLoading] = useState(true)
   const [serverError, setServerError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+  const [showBudgetCalculator, setShowBudgetCalculator] = useState(false)
+  const [noBudget, setNoBudget] = useState(false)
 
-  const { register, handleSubmit, formState: { errors }, watch, setValue, reset } = useForm({
+  const { register, handleSubmit, formState: { errors }, watch, setValue, reset, clearErrors } = useForm({
     defaultValues: {
       inaltime: '',
       greutate: '',
@@ -54,6 +57,10 @@ export default function Profile() {
           km_zi: findClosestUsage(profile.km_zi),
           tip_combustibil: profile.tip_combustibil ?? '',
         })
+        const hasExistingData = profile.inaltime != null || profile.greutate != null || profile.km_zi != null
+        if (hasExistingData && profile.buget == null) {
+          setNoBudget(true)
+        }
       } catch (err) {
         // Profil nou, formularul rămâne gol
       } finally {
@@ -70,7 +77,7 @@ export default function Profile() {
       const payload = {
         inaltime: parseInt(values.inaltime, 10),
         greutate: parseInt(values.greutate, 10),
-        buget: parseInt(values.buget, 10),
+        buget: noBudget ? null : parseInt(values.buget, 10),
         km_zi: parseInt(values.km_zi, 10),
         tip_combustibil: values.tip_combustibil,
       }
@@ -156,23 +163,58 @@ export default function Profile() {
 
         {/* Buget */}
         <div>
-          <label className="block text-sm text-ink mb-2">Buget</label>
+          <div className="flex items-center justify-between mb-2 max-w-xs">
+            <label className="text-sm text-ink">Buget</label>
+            <button
+              type="button"
+              onClick={() => setShowBudgetCalculator(true)}
+              className="text-xs font-mono uppercase tracking-widest text-ink-muted hover:text-ink transition"
+            >
+              Calculează →
+            </button>
+          </div>
           <div className="relative max-w-xs">
             <input
               type="number"
               inputMode="numeric"
               placeholder="30000"
-              className="w-full px-4 py-3 pr-12 border border-line bg-surface text-ink focus:outline-none focus:border-ink transition"
+              disabled={noBudget}
+              className={`w-full px-4 py-3 pr-12 border border-line bg-surface text-ink focus:outline-none focus:border-ink transition ${noBudget ? 'opacity-40 cursor-not-allowed' : ''}`}
               {...register('buget', {
-                required: 'Câmp obligatoriu',
                 valueAsNumber: true,
-                min: { value: 1000, message: 'Buget minim 1.000 €' },
-                max: { value: 500000, message: 'Buget maxim 500.000 €' },
+                validate: (val) => {
+                  if (noBudget) return true
+                  if (val === '' || val == null || Number.isNaN(val)) return 'Câmp obligatoriu'
+                  if (val < 1000) return 'Buget minim 1.000 €'
+                  if (val > 500000) return 'Buget maxim 500.000 €'
+                  return true
+                },
               })}
             />
             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-mono text-ink-subtle">€</span>
           </div>
-          {errors.buget && <p className="text-sm text-danger mt-1">{errors.buget.message}</p>}
+          {errors.buget && !noBudget && <p className="text-sm text-danger mt-1">{errors.buget.message}</p>}
+          <label className="flex items-center gap-2 mt-3 cursor-pointer select-none w-fit">
+            <input
+              type="checkbox"
+              checked={noBudget}
+              onChange={(e) => {
+                const checked = e.target.checked
+                setNoBudget(checked)
+                if (checked) {
+                  setValue('buget', '', { shouldValidate: false })
+                  clearErrors('buget')
+                }
+              }}
+              className="w-4 h-4 accent-ink"
+            />
+            <span className="text-sm text-ink-muted">Nu știu bugetul încă</span>
+          </label>
+          {noBudget && (
+            <p className="text-xs text-ink-subtle mt-2 max-w-md leading-relaxed">
+              Recomandările vor include mașini din toate categoriile de preț.
+            </p>
+          )}
         </div>
 
         {/* Frecvența drumurilor lungi */}
@@ -255,6 +297,14 @@ export default function Profile() {
           </button>
         </div>
       </form>
+      <BudgetCalculatorModal
+        open={showBudgetCalculator}
+        onClose={() => setShowBudgetCalculator(false)}
+        onConfirm={(value) => {
+          if (noBudget) setNoBudget(false)
+          setValue('buget', value, { shouldValidate: true })
+        }}
+      />
     </div>
   )
 }

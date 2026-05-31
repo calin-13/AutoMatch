@@ -43,6 +43,8 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     role = Column(String(20), nullable=False, default="user")
     created_at = Column(DateTime, server_default=func.now())
+    reset_token_hash = Column(String(64), nullable=True)
+    reset_token_expires = Column(DateTime(timezone=True), nullable=True)
 
     recommendations_legacy = relationship("RecommendationHistory", back_populates="user")
     recommendations = relationship("Recommendation", back_populates="user", cascade="all, delete-orphan")

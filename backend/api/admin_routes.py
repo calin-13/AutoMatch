@@ -133,7 +133,6 @@ def list_users(
             profile_complete = all([
                 profile.inaltime is not None,
                 profile.greutate is not None,
-                profile.buget is not None,
                 profile.km_zi is not None,
                 profile.tip_combustibil is not None,
                 profile.has_completed_test,

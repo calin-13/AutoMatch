@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { carsApi } from '../../api/cars'
 import { feedbackApi } from '../../api/feedback'
+import CarImagePlaceholder from '../../components/CarImagePlaceholder'
 
 const FIELD_CONFIG = {
   putere_cp: { label: 'Putere', unit: 'CP' },
@@ -125,6 +126,13 @@ export default function CarDetails() {
         ← Înapoi
       </button>
 
+      <CarImagePlaceholder
+        marca={car.marca}
+        model={car.model}
+        an={car.an}
+        tipCaroserie={car.tip_caroserie}
+        tipCombustibil={car.tip_combustibil}
+      />
       {/* Hero */}
       <div className="border-b border-line pb-12 mb-12">
         <div className="text-xs font-mono uppercase tracking-widest text-ink-muted mb-4">

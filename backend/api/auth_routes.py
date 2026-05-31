@@ -1,9 +1,10 @@
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from config import get_db, LOGIN_RATE_LIMIT
+from config import get_db, LOGIN_RATE_LIMIT, FRONTEND_URL, RESET_TOKEN_EXPIRE_MINUTES
 from models.database import (
     User, RecommendationHistory, UserProfile as UserProfileDB,
     Recommendation, RecommendationItem, Car
@@ -15,7 +16,9 @@ from models.schemas import (
 )
 from services.auth_service import (
     hash_password, verify_password, create_access_token, get_current_user,
+    generate_reset_token, hash_reset_token,
 )
+from services.email_service import send_password_reset_email
 
 auth_router = APIRouter(prefix="/api/auth", tags=["authentication"])
 
@@ -32,6 +35,15 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
 
 
 class TokenResponse(BaseModel):
@@ -62,7 +74,6 @@ def _profile_to_response(profile: UserProfileDB) -> UserProfileResponse:
     is_complete = all([
         profile.inaltime is not None,
         profile.greutate is not None,
-        profile.buget is not None,
         profile.km_zi is not None,
         profile.tip_combustibil is not None,
         profile.has_completed_test,
@@ -119,6 +130,41 @@ def login(request: Request, req: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Email sau parola incorecta")
     token = create_access_token({"sub": user.id})
     return TokenResponse(access_token=token, token_type="bearer", username=user.username)
+
+
+@auth_router.post("/forgot-password")
+@limiter.limit("3/minute")
+def forgot_password(request: Request, req: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == req.email).first()
+    if user is not None:
+        raw, token_hash = generate_reset_token()
+        user.reset_token_hash = token_hash
+        user.reset_token_expires = datetime.now(timezone.utc) + timedelta(minutes=RESET_TOKEN_EXPIRE_MINUTES)
+        db.commit()
+        reset_link = f"{FRONTEND_URL}/reset-password?token={raw}"
+        send_password_reset_email(user.email, reset_link)
+    return {"message": "Daca exista un cont cu acest email, am trimis un link de resetare."}
+
+
+@auth_router.post("/reset-password")
+@limiter.limit("5/minute")
+def reset_password(request: Request, req: ResetPasswordRequest, db: Session = Depends(get_db)):
+    if len(req.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Parola trebuie sa aiba minim 6 caractere")
+    token_hash = hash_reset_token(req.token)
+    user = db.query(User).filter(User.reset_token_hash == token_hash).first()
+    if user is None or user.reset_token_expires is None:
+        raise HTTPException(status_code=400, detail="Link invalid sau expirat")
+    expires = user.reset_token_expires
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if expires < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Link invalid sau expirat")
+    user.hashed_password = hash_password(req.new_password)
+    user.reset_token_hash = None
+    user.reset_token_expires = None
+    db.commit()
+    return {"message": "Parola a fost resetata. Te poti autentifica acum."}
 
 
 @auth_router.get("/me", response_model=UserResponse)

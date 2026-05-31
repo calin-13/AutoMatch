@@ -1,3 +1,5 @@
+import secrets
+import hashlib
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -18,6 +20,16 @@ def hash_password(password: str) -> str:
 
 def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
+
+
+def generate_reset_token():
+    raw = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw.encode()).hexdigest()
+    return raw, token_hash
+
+
+def hash_reset_token(raw: str) -> str:
+    return hashlib.sha256(raw.encode()).hexdigest()
 
 
 def create_access_token(data: dict, expires_delta: timedelta = None) -> str:

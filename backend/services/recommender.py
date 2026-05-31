@@ -44,21 +44,34 @@ def get_recommendations(
     else:
         scored = _score_cars_rule_based(candidates, profile)
 
+    feedbacks = []
+    liked_ids = set()
     if user_id is not None:
         feedbacks = get_user_feedback_with_cars(db, user_id)
         if feedbacks:
             scored = _apply_feedback_reranking(scored, cars_by_id, feedbacks)
+            liked_ids = {fb.car_id for fb, _car in feedbacks if fb.rating == 1}
 
     scored.sort(key=lambda x: x.score_total, reverse=True)
 
-    # Selectie finala: MMR sau simpla
-    if use_diversity and len(scored) > top_n:
-        top = _apply_mmr_diversity(scored, cars_by_id, top_n)
+    # Pin liked cars in top_n; fill restul cu MMR (folosind liked ca ancore) sau pur score
+    liked_recs = [r for r in scored if r.id in liked_ids]
+    other_recs = [r for r in scored if r.id not in liked_ids]
+    for r in liked_recs:
+        r.score_details["pinned_by_like"] = True
+
+    if len(liked_recs) >= top_n:
+        top = liked_recs[:top_n]
     else:
-        top = scored[:top_n]
+        slots = top_n - len(liked_recs)
+        if use_diversity and len(other_recs) > slots:
+            filler = _apply_mmr_diversity(other_recs, cars_by_id, slots, anchor_cars=liked_recs)
+        else:
+            filler = other_recs[:slots]
+        top = liked_recs + filler
 
     if ml_available():
-        budget = user_input.physiological.buget
+        budget = user_input.physiological.buget or 30000
         km_zi = user_input.physiological.km_zi
         for rec in top:
             car = cars_by_id.get(rec.id)
@@ -75,7 +88,9 @@ def _filter_cars(user_input: UserInput, db: Session) -> list[Car]:
     budget = user_input.physiological.buget
     fuel_pref = user_input.physiological.tip_combustibil
     preferred_brands = user_input.preferred_brands
-    query = db.query(Car).filter(Car.pret <= budget * 1.1)
+    query = db.query(Car)
+    if budget is not None:
+        query = query.filter(Car.pret <= budget * 1.1)
     if fuel_pref and fuel_pref != "orice":
         fuel_q = query.filter(Car.tip_combustibil == fuel_pref)
         if fuel_q.count() > 0:
@@ -109,18 +124,24 @@ def _apply_mmr_diversity(
     sorted_recs: list[CarRecommendation],
     cars_by_id: dict,
     top_n: int,
+    anchor_cars: Optional[list] = None,
 ) -> list[CarRecommendation]:
     """
     Maximal Marginal Relevance: la fiecare pas alegem masina care maximizeaza
-    lambda * relevanta - (1-lambda) * similaritate_max_cu_selectate
+    lambda * relevanta - (1-lambda) * similaritate_max_cu_selectate.
+
+    anchor_cars: masini deja prezente in top (de ex. pinned prin like). Nu sunt
+    incluse in candidate pool si nu apar in return, dar penalizeaza candidatii
+    similari cu ele -> filler-ul tinde sa fie diferit de cele pinned.
     """
     if not sorted_recs:
         return []
 
-    # Normalizez scorurile la 0-1 pentru a combina cu penalitati
+    anchors = list(anchor_cars) if anchor_cars else []
+
     max_score = max(r.score_total for r in sorted_recs) or 1.0
     candidates = list(sorted_recs)
-    selected = [candidates.pop(0)]
+    selected = []
 
     while len(selected) < top_n and candidates:
         best_idx = 0
@@ -133,9 +154,9 @@ def _apply_mmr_diversity(
 
             relevance = cand.score_total / max_score
 
-            # Calculez similaritatea maxima fata de orice mașină deja selectată
+            # Similaritate fata de selectate + ancore (liked pinned)
             max_similarity = 0.0
-            for sel in selected:
+            for sel in selected + anchors:
                 sel_car = cars_by_id.get(sel.id)
                 if sel_car is None:
                     continue
@@ -150,13 +171,9 @@ def _apply_mmr_diversity(
                 best_idx = i
 
         chosen = candidates.pop(best_idx)
-        chosen_car = cars_by_id.get(chosen.id)
-        # Notez diversitatea aplicata (audit pentru frontend)
         chosen.score_details["diversity_applied"] = True
         selected.append(chosen)
 
-    for s in selected:
-        s.score_details.setdefault("diversity_applied", True)
     return selected
 
 
@@ -181,7 +198,7 @@ def _score_cars_ml(
     cars: list[Car], profile: UserProfile, user_input: UserInput
 ) -> list[CarRecommendation]:
     results = []
-    budget = user_input.physiological.buget
+    budget = user_input.physiological.buget or 30000
     km_zi = user_input.physiological.km_zi
 
     for car in cars:

@@ -6,7 +6,7 @@ from datetime import datetime
 class PhysiologicalData(BaseModel):
     inaltime: float = Field(..., ge=140, le=220)
     greutate: float = Field(..., ge=40, le=200)
-    buget: float = Field(..., ge=1000, le=500000)
+    buget: Optional[float] = Field(None, ge=1000, le=500000)
     km_zi: float = Field(..., ge=0, le=500)
     tip_combustibil: str
 

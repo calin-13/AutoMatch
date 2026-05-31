@@ -179,8 +179,6 @@ def recommend_from_profile(
         missing.append("inaltime")
     if profile_db.greutate is None:
         missing.append("greutate")
-    if profile_db.buget is None:
-        missing.append("buget")
     if profile_db.km_zi is None:
         missing.append("km_zi")
     if profile_db.tip_combustibil is None:
@@ -217,10 +215,12 @@ def recommend_from_profile(
     try:
         # Calculez total masini si pool-ul de candidati (pentru transparenta in UI)
         total_in_db = db.query(func.count(Car.id)).scalar() or 0
-        budget_cap = user_input.physiological.buget * 1.1
         fuel_pref = user_input.physiological.tip_combustibil
         preferred_brands = user_input.preferred_brands or []
-        base_filter = [Car.pret <= budget_cap]
+        base_filter = []
+        if user_input.physiological.buget is not None:
+            budget_cap = user_input.physiological.buget * 1.1
+            base_filter.append(Car.pret <= budget_cap)
         if fuel_pref and fuel_pref != "orice":
             fuel_count = db.query(func.count(Car.id)).filter(*base_filter, Car.tip_combustibil == fuel_pref).scalar() or 0
             if fuel_count > 0:

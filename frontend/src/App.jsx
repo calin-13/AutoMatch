@@ -3,6 +3,8 @@ import Layout from './components/layout/Layout'
 import Home from './pages/public/Home'
 import Login from './pages/public/Login'
 import Register from './pages/public/Register'
+import ForgotPassword from './pages/public/ForgotPassword'
+import ResetPassword from './pages/public/ResetPassword'
 import CarDetails from './pages/public/CarDetails'
 import Catalog from './pages/public/Catalog'
 import Test from './pages/user/Test'
@@ -21,6 +23,8 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/catalog" element={<Catalog />} />
         <Route path="/cars/:id" element={<CarDetails />} />
         <Route path="/test" element={<ProtectedRoute><Test /></ProtectedRoute>} />

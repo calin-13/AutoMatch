@@ -39,6 +39,11 @@ export default function Login() {
       <p className="text-ink-muted mb-10">
         Conectează-te ca să continui de unde ai rămas.
       </p>
+      {location.state?.reset && (
+        <div className="border border-accent/30 bg-accent/5 text-ink text-sm px-4 py-3 mb-6">
+          Parola a fost resetată. Conectează-te cu noua parolă.
+        </div>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
         <div>
@@ -82,6 +87,12 @@ export default function Login() {
       </form>
 
       <p className="text-sm text-ink-muted mt-8">
+        Ai uitat parola?{' '}
+        <Link to="/forgot-password" className="text-accent hover:underline">
+          Resetează-o aici
+        </Link>
+      </p>
+      <p className="text-sm text-ink-muted mt-3">
         Nu ai cont încă?{' '}
         <Link to="/register" className="text-accent hover:underline">
           Crează unul acum

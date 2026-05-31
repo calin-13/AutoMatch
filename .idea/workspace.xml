@@ -4,7 +4,25 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="dfdc47c3-e365-4288-ae9a-f7f085b0b0af" name="Changes" comment="" />
+    <list default="true" id="dfdc47c3-e365-4288-ae9a-f7f085b0b0af" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/api/admin_routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/api/admin_routes.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/api/auth_routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/api/auth_routes.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/api/routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/api/routes.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/models/database.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/models/database.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/models/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/models/schemas.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/services/auth_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/services/auth_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/services/recommender.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/services/recommender.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/services/scoring.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/services/scoring.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/App.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/App.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/api/auth.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/api/auth.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/layout/Layout.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/layout/Layout.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/public/CarDetails.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/public/CarDetails.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/public/Login.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/public/Login.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/user/Profile.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/user/Profile.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/user/Recommendations.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/user/Recommendations.jsx" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -57,6 +75,8 @@
       <workItem from="1777288297709" duration="8321000" />
       <workItem from="1778090547611" duration="482000" />
       <workItem from="1778091032911" duration="7031000" />
+      <workItem from="1779039778377" duration="75006000" />
+      <workItem from="1780072138396" duration="5179000" />
     </task>
     <servers />
   </component>

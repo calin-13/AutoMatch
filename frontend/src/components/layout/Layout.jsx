@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import Navbar from './Navbar'
-import { carsApi } from '../../api/cars'
+import { recommendationsApi } from '../../api/recommendations'
 
 export default function Layout() {
   const [stats, setStats] = useState({ total: null, brands: null })
@@ -9,22 +9,13 @@ export default function Layout() {
   useEffect(() => {
     async function loadStats() {
       try {
-        const response = await carsApi.list({ per_page: 500, page: 1 })
-        const items = Array.isArray(response)
-          ? response
-          : (response.items || response.cars || response.data || [])
-        const total =
-          response.total ??
-          response.count ??
-          response.total_count ??
-          response.pagination?.total ??
-          items.length
-        const brands = items.length > 0
-          ? new Set(items.map(c => c.marca).filter(Boolean)).size
-          : null
-        setStats({ total, brands })
+        const brands = await recommendationsApi.getBrands()
+        setStats({
+          total: brands.reduce((sum, b) => sum + (b.count || 0), 0),
+          brands: brands.length,
+        })
       } catch (err) {
-        // silent fail — footer arata —
+        // silent
       }
     }
     loadStats()

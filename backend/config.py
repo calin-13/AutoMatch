@@ -28,6 +28,10 @@ CORS_ORIGINS = [
     o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
     if o.strip()
 ]
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+EMAIL_FROM = os.getenv("EMAIL_FROM", "AutoMatch <onboarding@resend.dev>")
+RESET_TOKEN_EXPIRE_MINUTES = int(os.getenv("RESET_TOKEN_EXPIRE_MINUTES", "30"))
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

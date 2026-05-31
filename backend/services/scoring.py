@@ -12,7 +12,9 @@ def calculate_rule_based_scores(user_input: UserInput) -> UserProfile:
     behav = user_input.behavioral
 
     # === Categorie buget ===
-    if phys.buget < 5000:
+    if phys.buget is None:
+        categorie_buget = "flexibil"
+    elif phys.buget < 5000:
         categorie_buget = "economic"
     elif phys.buget < 15000:
         categorie_buget = "mediu"
@@ -44,11 +46,12 @@ def calculate_rule_based_scores(user_input: UserInput) -> UserProfile:
         economie_bonus += 1
 
     # Buget mic -> economie mai importantă
-    if phys.buget < 10000:
-        economie_bonus += 3
-    elif phys.buget > 30000:
-        estetica_bonus += 1
-        comfort_bonus += 1
+    if phys.buget is not None:
+        if phys.buget < 10000:
+            economie_bonus += 3
+        elif phys.buget > 30000:
+            estetica_bonus += 1
+            comfort_bonus += 1
 
     # Mulți km/zi -> economie și comfort
     if phys.km_zi > 50:

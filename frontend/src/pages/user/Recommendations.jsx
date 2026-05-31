@@ -5,9 +5,119 @@ import { recommendationsApi } from '../../api/recommendations'
 import { feedbackApi } from '../../api/feedback'
 import { carsApi } from '../../api/cars'
 
+const SHAP_SHORT_LABELS = {
+  car_rating_siguranta: 'Siguranță (mașină)',
+  car_rating_comfort: 'Confort (mașină)',
+  car_rating_sport: 'Sport (mașină)',
+  car_rating_economie: 'Economie (mașină)',
+  car_rating_estetica: 'Estetică (mașină)',
+  pref_siguranta: 'Pref. siguranță',
+  pref_comfort: 'Pref. confort',
+  pref_sport: 'Pref. sport',
+  pref_economie: 'Pref. economie',
+  pref_estetica: 'Pref. estetică',
+  budget: 'Buget',
+  user_budget: 'Buget',
+  pret: 'Preț',
+  price: 'Preț',
+  putere_cp: 'Putere',
+  consum_mediu: 'Consum',
+  emisii_co2: 'Emisii CO₂',
+  an: 'An fabricație',
+  numar_locuri: 'Locuri',
+  volum_portbagaj: 'Portbagaj',
+  user_inaltime: 'Înălțime',
+  inaltime: 'Înălțime',
+  user_greutate: 'Greutate',
+  greutate: 'Greutate',
+  km_zi: 'Km/zi',
+  user_km_zi: 'Km/zi',
+  car_pret: 'Preț (mașină)',
+  car_putere_cp: 'Putere',
+  car_consum_mediu: 'Consum',
+  car_emisii_co2: 'Emisii CO₂',
+  car_volum_portbagaj: 'Portbagaj',
+  car_numar_locuri: 'Locuri',
+  car_is_electric: 'Electrică',
+  car_is_hybrid: 'Hibridă',
+  car_is_suv: 'SUV',
+  car_is_coupe: 'Coupé',
+  car_is_sedan: 'Sedan',
+  price_ratio: 'Raport preț/buget',
+}
+
+function shapLabel(feature) {
+  return SHAP_SHORT_LABELS[feature] || feature
+}
+
+function ShapChart({ features, baseValue }) {
+  if (!features || features.length === 0) return null
+  const maxAbs = Math.max(...features.map(f => Math.abs(Number(f.shap_value) || 0)), 0.1)
+
+  return (
+    <div className="mt-4 pt-4 border-t border-line">
+      <div className="text-xs font-mono uppercase tracking-widest text-ink-muted mb-2">
+        Analiză SHAP
+      </div>
+      <p className="text-xs text-ink-subtle mb-4 leading-relaxed">
+        Contribuția fiecărui factor la scorul final. Pozitiv = ridică scorul,
+        negativ = scade scorul. Calculat cu SHAP TreeExplainer pe Random Forest.
+      </p>
+      <div className="space-y-2.5">
+        {features.map((f, i) => {
+          const shap = Number(f.shap_value || 0)
+          const isPositive = shap >= 0
+          const pct = (Math.abs(shap) / maxAbs) * 48
+          return (
+            <div key={i} className="grid grid-cols-[110px_1fr_56px] gap-3 items-center">
+              <div className="text-xs text-ink truncate" title={f.feature || f.name}>
+                {shapLabel(f.feature || f.name)}
+              </div>
+              <div className="relative h-2 bg-line/40">
+                <div className="absolute left-1/2 top-0 bottom-0 w-px bg-ink/30" />
+                <div
+                  className={isPositive ? 'absolute top-0 bottom-0 bg-accent' : 'absolute top-0 bottom-0 bg-ink/60'}
+                  style={{
+                    left: isPositive ? '50%' : `${50 - pct}%`,
+                    width: `${pct}%`,
+                  }}
+                />
+              </div>
+              <div className={isPositive ? 'text-xs font-mono text-right text-accent' : 'text-xs font-mono text-right text-ink-muted'}>
+                {isPositive ? '+' : ''}{shap.toFixed(2)}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      {baseValue != null && (
+        <div className="mt-4 pt-3 border-t border-line/60 flex justify-between items-baseline">
+          <span className="text-xs font-mono uppercase tracking-widest text-ink-subtle">Baseline model</span>
+          <span className="text-xs font-mono text-ink-muted">{Number(baseValue).toFixed(1)}</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function describeFeature(feature, value, impact) {
   const v = typeof value === 'number' ? value : Number(value) || 0
-  switch (feature) {
+  const norm = feature && feature.startsWith('car_') && !feature.startsWith('car_rating_') && !feature.startsWith('car_is_')
+    ? feature.slice(4)
+    : feature
+  switch (norm) {
+    case 'car_is_electric':
+      return 'Motorizare electrică'
+    case 'car_is_hybrid':
+      return 'Motorizare hibridă'
+    case 'car_is_suv':
+      return 'Caroserie SUV'
+    case 'car_is_coupe':
+      return 'Caroserie coupé'
+    case 'car_is_sedan':
+      return 'Caroserie sedan'
+    case 'price_ratio':
+      return 'Preț bun raportat la buget'
     case 'car_rating_siguranta':
       if (v >= 4.5) return `Siguranță excelentă (${v.toFixed(1)}/5)`
       if (v >= 3.5) return `Siguranță foarte bună (${v.toFixed(1)}/5)`
@@ -116,10 +226,12 @@ export default function Recommendations() {
   const [recommendationId, setRecommendationId] = useState(null)
   const [sessionRating, setSessionRating] = useState(0)
   const [sessionComment, setSessionComment] = useState('')
+  const [expandedShap, setExpandedShap] = useState({})
   const [sessionSubmitting, setSessionSubmitting] = useState(false)
   const [sessionSubmitted, setSessionSubmitted] = useState(false)
   const [availableBrands, setAvailableBrands] = useState([])
   const [selectedBrands, setSelectedBrands] = useState([])
+  const [brandsExpanded, setBrandsExpanded] = useState(false)
 
   const toggleBrand = (marca) => {
     setSelectedBrands(prev =>
@@ -295,39 +407,48 @@ export default function Recommendations() {
           Cele {recs.length} mașini care se potrivesc cel mai bine profilului tău. Pentru fiecare vezi motivele exacte și poți marca ce-ți place sau nu — recomandările viitoare se vor adapta.
         </p>
         {availableBrands.length > 0 && (
-          <div className="mb-8">
-            <div className="text-xs font-mono text-ink-muted mb-3 tracking-wider">FILTREAZĂ DUPĂ MARCĂ</div>
-            <div className="flex flex-wrap gap-2">
-              {availableBrands.map(b => {
-                const isSelected = selectedBrands.includes(b.marca)
-                return (
-                  <button
-                    key={b.marca}
-                    onClick={() => toggleBrand(b.marca)}
-                    className={
-                      isSelected
-                        ? "px-3 py-1.5 border border-accent bg-accent text-white text-sm transition"
-                        : "px-3 py-1.5 border border-line bg-surface text-ink text-sm hover:border-accent transition"
-                    }
-                  >
-                    {b.marca} <span className="opacity-60 ml-1">{b.count}</span>
-                  </button>
-                )
-              })}
+          <div className="mt-10 mb-8">
+            <div className="flex items-center gap-4 mb-3">
+              <button
+                onClick={() => setBrandsExpanded(!brandsExpanded)}
+                className="text-xs font-mono text-ink-muted tracking-wider hover:text-accent transition"
+              >
+                FILTREAZĂ DUPĂ MARCĂ{selectedBrands.length > 0 ? ` · ${selectedBrands.length} selectate` : ''} {brandsExpanded ? '−' : '+'}
+              </button>
               {selectedBrands.length > 0 && (
                 <button
                   onClick={() => setSelectedBrands([])}
-                  className="px-3 py-1.5 text-sm text-ink-muted hover:text-accent transition"
+                  className="text-xs text-ink-muted hover:text-accent transition"
                 >
                   Șterge filtrul
                 </button>
               )}
             </div>
+            {brandsExpanded && (
+              <div className="flex flex-wrap gap-2">
+                {availableBrands.map(b => {
+                  const isSelected = selectedBrands.includes(b.marca)
+                  return (
+                    <button
+                      key={b.marca}
+                      onClick={() => toggleBrand(b.marca)}
+                      className={
+                        isSelected
+                          ? "px-3 py-1.5 border border-accent bg-accent text-white text-sm transition"
+                          : "px-3 py-1.5 border border-line bg-surface text-ink text-sm hover:border-accent transition"
+                      }
+                    >
+                      {b.marca} <span className="opacity-60 ml-1">{b.count}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
         {poolInfo.candidates !== null && poolInfo.total !== null && (
           <p className="text-sm text-ink-muted mt-4 max-w-2xl">
-            Sistemul a analizat <span className="font-mono text-ink">{poolInfo.candidates}</span> mașini compatibile cu bugetul și combustibilul tău, din <span className="font-mono text-ink">{poolInfo.total}</span> mașini totale din catalog.
+            Sistemul a analizat <span className="font-mono text-ink">{poolInfo.candidates}</span> mașini compatibile cu {selectedBrands.length > 0 ? 'bugetul, combustibilul și mărcile selectate' : 'bugetul și combustibilul tău'}, din <span className="font-mono text-ink">{poolInfo.total}</span> mașini totale din catalog.
           </p>
         )}
       </div>
@@ -380,8 +501,11 @@ export default function Recommendations() {
           return (
             <div key={rec.id} className="border border-line bg-surface p-8 grid md:grid-cols-[1fr_2fr] gap-8">
               <div>
-                <div className="text-xs font-mono uppercase tracking-widest text-accent mb-3">
-                  {String(idx + 1).padStart(2, '0')} · Recomandat
+                <div className="text-xs font-mono uppercase tracking-widest text-accent mb-3 flex items-center gap-2">
+                  <span>{String(idx + 1).padStart(2, '0')} · Recomandat</span>
+                  {rec.score_details?.pinned_by_like && (
+                    <span className="text-ink bg-accent/10 px-2 py-0.5">★ Îmi place</span>
+                  )}
                 </div>
                 <h2 className="font-display text-4xl text-ink mb-1 tracking-tight">
                   <Link to={`/cars/${rec.id}`} className="hover:text-accent transition">
@@ -442,6 +566,23 @@ export default function Recommendations() {
                   )}
                 </div>
 
+                {features.length > 0 && (
+                  <div className="mb-6">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedShap(prev => ({ ...prev, [rec.id]: !prev[rec.id] }))}
+                      className="text-xs font-mono uppercase tracking-widest text-ink-muted hover:text-ink transition"
+                    >
+                      {expandedShap[rec.id] ? 'Ascunde' : 'Vezi'} analiza tehnică {expandedShap[rec.id] ? '↑' : '↓'}
+                    </button>
+                    {expandedShap[rec.id] && (
+                      <ShapChart
+                        features={features}
+                        baseValue={rec.score_details?.explanation?.base_value ?? rec.explanation?.base_value}
+                      />
+                    )}
+                  </div>
+                )}
                 <div className="flex gap-3 items-center">
                   <button
                     onClick={() => handleFeedback(rec.id, 'like')}
