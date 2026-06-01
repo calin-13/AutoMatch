@@ -9,7 +9,7 @@ export function setUnauthorizedHandler(handler) {
 }
 
 const client = axios.create({
-  baseURL: 'http://localhost:8000',
+  baseURL: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:8000' : 'https://automatch-tst2.onrender.com',
   timeout: 30000,
 })
 
