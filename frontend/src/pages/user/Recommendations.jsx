@@ -639,7 +639,7 @@ export default function Recommendations() {
                 Cum ti s-au parut aceste recomandari?
               </h2>
               <p className="text-ink-muted mb-6 max-w-2xl">
-                Parerea ta ajuta sistemul sa devina mai precis. Folosim raspunsurile pentru a antrena modelul si a imbunatati recomandarile pentru toti utilizatorii.
+                Parerea ta ne ajuta sa evaluam cat de bune sunt recomandarile si sa imbunatatim sistemul pe viitor.
               </p>
               <div className="flex gap-2 mb-6 items-center">
                 {[1, 2, 3, 4, 5].map((star) => (
