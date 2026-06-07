@@ -61,7 +61,7 @@ function ShapChart({ features, baseValue }) {
       </div>
       <p className="text-xs text-ink-subtle mb-4 leading-relaxed">
         Contribuția fiecărui factor la scorul final. Pozitiv = ridică scorul,
-        negativ = scade scorul. Calculat cu SHAP TreeExplainer pe Random Forest.
+        negativ = scade scorul. Calculat cu SHAP TreeExplainer pe XGBoost.
       </p>
       <div className="space-y-2.5">
         {features.map((f, i) => {
