@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { carsApi } from '../../api/cars'
+import { recommendationsApi } from '../../api/recommendations'
 import { useAuth } from '../../context/AuthContext'
-
 export default function Home() {
   const { user } = useAuth()
   const [totalCars, setTotalCars] = useState(null)
   const [totalBrands, setTotalBrands] = useState(null)
-
   useEffect(() => {
     async function loadStats() {
       try {
@@ -21,11 +20,10 @@ export default function Home() {
           response.total_count ??
           response.pagination?.total ??
           items.length
-
         if (total) setTotalCars(total)
         if (items.length > 0) {
-          const brands = new Set(items.map(c => c.marca).filter(Boolean))
-          setTotalBrands(brands.size)
+          const allBrands = await recommendationsApi.getBrands()
+          setTotalBrands(allBrands.length)
         }
       } catch (err) {
         console.warn('Nu s-au putut încărca statisticile:', err)
@@ -33,25 +31,21 @@ export default function Home() {
     }
     loadStats()
   }, [])
-
   return (
     <div className="max-w-6xl mx-auto px-6 py-20">
       <div className="text-xs font-mono uppercase tracking-widest text-ink-muted mb-6">
         Recomandări personalizate{totalCars ? ` · ${totalCars} de mașini` : ''}
       </div>
-
       <h1 className="font-display text-7xl tracking-tightest text-ink leading-[1.05] mb-12 max-w-4xl">
         Mașina potrivită,
         <br />
         <span className="italic text-accent">găsită științific.</span>
       </h1>
-
       <p className="text-xl text-ink-muted leading-relaxed mb-12 max-w-2xl">
         Răspunde la câteva întrebări despre tine — buget, înălțime, kilometraj
         zilnic, preferințe — și primești top 5 mașini care ți se potrivesc, cu
         motivele exacte pentru fiecare alegere.
       </p>
-
       <div className="flex flex-wrap gap-3 mb-24">
         <Link
           to={user ? '/test' : '/register'}
@@ -66,7 +60,6 @@ export default function Home() {
           Vezi catalogul
         </Link>
       </div>
-
       <div className="border-t border-line pt-12 grid grid-cols-1 md:grid-cols-3 gap-12 mb-32">
         <div>
           <div className="font-display text-6xl text-ink mb-2 tracking-tight">
@@ -91,7 +84,6 @@ export default function Home() {
           </div>
         </div>
       </div>
-
       <div>
         <div className="text-xs font-mono uppercase tracking-widest text-ink-muted mb-6">
           Cum funcționează
@@ -99,7 +91,6 @@ export default function Home() {
         <h2 className="font-display text-5xl tracking-tightest text-ink mb-16 max-w-3xl leading-tight">
           Patru pași până la <span className="italic">mașina ta</span>.
         </h2>
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-16">
           {[
             {
