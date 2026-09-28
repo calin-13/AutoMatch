@@ -132,9 +132,6 @@ XGBOOST_MODEL_PATH=./models/xgboost_ranker.pkl
 ## Model Performance
 
 Previously RandomForrest, but got better results with the XGBoost recommendation and it engine achieves:
-- **Accuracy**: [Add your metric]
-- **F1-Score**: [Add your metric]
-- **Cross-validation Score**: [Add your metric]
 
 See `backend/data/model_evaluation.md` for detailed performance analysis.
 
