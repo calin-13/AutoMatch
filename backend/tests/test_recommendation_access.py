@@ -76,3 +76,17 @@ def test_user_cannot_read_another_users_recommendation(db):
     with pytest.raises(HTTPException) as err:
         get_recommendation_detail(rec_id, current_user=other, db=db)
     assert err.value.status_code == 404
+
+
+def test_deleting_user_removes_legacy_history(db):
+    from models.database import RecommendationHistory
+
+    user = _user(db, "gone")
+    _recommendations(db, user, 1)
+    db.add(RecommendationHistory(user_id=user.id, recommended_cars="1"))
+    db.commit()
+
+    db.delete(user)
+    db.commit()
+
+    assert db.query(RecommendationHistory).count() == 0

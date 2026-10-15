@@ -46,7 +46,7 @@ class User(Base):
     reset_token_hash = Column(String(64), nullable=True)
     reset_token_expires = Column(DateTime(timezone=True), nullable=True)
 
-    recommendations_legacy = relationship("RecommendationHistory", back_populates="user")
+    recommendations_legacy = relationship("RecommendationHistory", back_populates="user", cascade="all, delete-orphan")
     recommendations = relationship("Recommendation", back_populates="user", cascade="all, delete-orphan")
     profile = relationship(
         "UserProfile",
