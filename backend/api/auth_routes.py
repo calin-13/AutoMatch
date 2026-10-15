@@ -1,13 +1,13 @@
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, HTTPException, Depends, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from pydantic import BaseModel, EmailStr
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from config import get_db, LOGIN_RATE_LIMIT, FRONTEND_URL, RESET_TOKEN_EXPIRE_MINUTES
 from models.database import (
     User, RecommendationHistory, UserProfile as UserProfileDB,
-    Recommendation, RecommendationItem, Car
+    Recommendation, RecommendationItem
 )
 from models.schemas import (
     UserProfileResponse, UserProfileUpdate,
@@ -243,6 +243,7 @@ def list_recommendations(
 ):
     recs = (
         db.query(Recommendation)
+        .options(selectinload(Recommendation.items).selectinload(RecommendationItem.car))
         .filter(Recommendation.user_id == current_user.id)
         .order_by(Recommendation.created_at.desc())
         .all()
@@ -255,7 +256,7 @@ def list_recommendations(
         top_model = None
         top_score = None
         if top_item is not None:
-            car = db.query(Car).filter(Car.id == top_item.car_id).first()
+            car = top_item.car
             if car is not None:
                 top_marca = car.marca
                 top_model = car.model
@@ -286,6 +287,7 @@ def get_recommendation_detail(
 ):
     rec = (
         db.query(Recommendation)
+        .options(selectinload(Recommendation.items).selectinload(RecommendationItem.car))
         .filter(Recommendation.id == rec_id, Recommendation.user_id == current_user.id)
         .first()
     )
@@ -297,7 +299,7 @@ def get_recommendation_detail(
 
     items_detail = []
     for item in rec.items:
-        car = db.query(Car).filter(Car.id == item.car_id).first()
+        car = item.car
         if car is None:
             continue
         items_detail.append(RecommendationItemDetail(
