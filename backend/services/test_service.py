@@ -136,7 +136,7 @@ QUESTIONS_V2 = QUESTIONS_V1 + [
         ],
     },
     {
-        "text": "La ce zgomot al motorului preferi?",
+        "text": "Ce zgomot al motorului preferi?",
         "options": [
             {"text": "Cat mai silentios posibil", "scores": {"comfort": 3, "economie": 1}},
             {"text": "Discret, dar prezent", "scores": {"comfort": 2, "estetica": 1}},
